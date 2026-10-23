@@ -1,0 +1,620 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// =========================================================================
+// 1. ENUMS DEL SISTEMA
+// =========================================================================
+
+enum EstadoRegistro {
+  ACTIVO
+  INACTIVO
+
+  @@map("estado_registro")
+}
+
+enum TipoAccionPermiso {
+  CONCEDER
+  DENEGAR
+
+  @@map("tipo_accion_permiso")
+}
+
+enum ClasificacionDefecto {
+  CRITICO
+  MAYOR
+  MENOR
+
+  @@map("clasificacion_defecto")
+}
+
+// =========================================================================
+// 2. CATEGORÍAS Y DEPARTAMENTOS
+// =========================================================================
+
+model CategoriaDepartamento {
+  id                 Int            @id @default(autoincrement())
+  nombre             String         @unique @db.VarChar(100)
+  descripcion        String?        @db.VarChar(255)
+  activo             Boolean        @default(true)
+  creadoPor          Int?           @map("creado_por")
+  creadoEn           DateTime       @default(now()) @map("creado_en")
+  actualizadoPor     Int?           @map("actualizado_por")
+  actualizadoEn      DateTime       @updatedAt @map("actualizado_en")
+  eliminadoPor       Int?           @map("eliminado_por")
+  eliminadoEn        DateTime?      @map("eliminado_en")
+
+  departamentos      Departamento[]
+
+  @@index([activo])
+  @@index([eliminadoEn])
+  @@map("categorias_departamento")
+}
+
+model Departamento {
+  id                      Int                    @id @default(autoincrement())
+  codigo                  String                 @unique @db.VarChar(30)
+  nombre                  String                 @db.VarChar(100)
+  categoriaDepartamentoId Int?                   @map("categoria_departamento_id")
+  estado                  EstadoRegistro         @default(ACTIVO)
+  creadoPor               Int?                   @map("creado_por")
+  fechaCreacion           DateTime               @default(now()) @map("fecha_creacion")
+  actualizadoPor          Int?                   @map("actualizado_por")
+  fechaActualizacion      DateTime               @updatedAt @map("fecha_actualizacion")
+  eliminadoPor            Int?                   @map("eliminado_por")
+  eliminadoEn             DateTime?              @map("eliminado_en")
+
+  categoria               CategoriaDepartamento? @relation(fields: [categoriaDepartamentoId], references: [id], onDelete: SetNull)
+  usuarios                UsuarioDepartamento[]
+  terminales              Terminal[]
+  registrosAuditoria      RegistroAuditoria[]
+  lineasAsociadas         DepartamentoLinea[]
+  defectosAsociados       DefectoDepartamento[]
+  etapasPermitidas        DefectoEtapa[]
+  defectosPropietarios    Defecto[]              @relation("DefectoDepartamentoPropietario")
+  inspeccionesRealizadas  InspeccionCabecera[]  @relation("InspeccionDeptoAuditoria")
+  defectosResponsable     InspeccionDetalle[]   @relation("DetalleDeptoResponsable")
+
+  @@index([categoriaDepartamentoId])
+  @@index([estado])
+  @@index([eliminadoEn])
+  @@map("departamentos")
+}
+
+// =========================================================================
+// 3. ROLES Y PERMISOS
+// =========================================================================
+
+model Rol {
+  id                 Int            @id @default(autoincrement())
+  codigo             String         @unique @db.VarChar(30) // SUPER_ADMIN, ADMIN, COORD, INSPECTOR
+  nombre             String         @db.VarChar(100)
+  descripcion        String?        @db.VarChar(255)
+  esSistema          Boolean        @default(false) @map("es_sistema") // Protege rol contra eliminación / cambio de código
+  estado             EstadoRegistro @default(ACTIVO)
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  usuarios Usuario[]
+  permisos RolPermiso[]
+
+  @@index([estado])
+  @@map("roles")
+}
+
+model Permiso {
+  id                 Int            @id @default(autoincrement())
+  codigo             String         @unique @db.VarChar(100) // ej. usuarios.consultar, defectos.crear
+  nombre             String         @db.VarChar(100)
+  modulo             String         @db.VarChar(50) // ej. usuarios, roles, departamentos, terminales, defectos
+  descripcion        String?        @db.VarChar(255)
+  estado             EstadoRegistro @default(ACTIVO)
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  roles       RolPermiso[]
+  excepciones UsuarioPermiso[]
+
+  @@index([modulo])
+  @@index([estado])
+  @@map("permisos")
+}
+
+model RolPermiso {
+  rolId              Int            @map("rol_id")
+  permisoId          Int            @map("permiso_id")
+  estado             EstadoRegistro @default(ACTIVO)
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Restrict)
+
+  @@id([rolId, permisoId])
+  @@index([estado])
+  @@map("roles_permisos")
+}
+
+// =========================================================================
+// 4. USUARIOS Y EXCEPCIONES DE PERMISOS
+// =========================================================================
+
+model Usuario {
+  id                 Int            @id @default(autoincrement())
+  usuario            String         @unique @db.VarChar(50)
+  nombre             String         @db.VarChar(150)
+  passwordHash       String         @map("password_hash") @db.VarChar(255)
+  rolId              Int            @map("rol_id")
+  estado             EstadoRegistro @default(ACTIVO)
+  versionPermisos    Int            @default(1) @map("version_permisos")
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  rol                Rol                   @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  sesiones           Sesion[]
+  departamentos      UsuarioDepartamento[]
+  excepcionesPermiso UsuarioPermiso[]
+  registrosAuditoria RegistroAuditoria[]   @relation("AuditoriaUsuario")
+  defectosCreados    Defecto[]             @relation("DefectoCreador")
+  defectosModificados Defecto[]            @relation("DefectoActualizador")
+  defectosEliminados Defecto[]             @relation("DefectoEliminador")
+  lotesCreados       ProduccionLote[]      @relation("LoteCreador")
+  lotesModificados   ProduccionLote[]      @relation("LoteActualizador")
+  lotesEliminados    ProduccionLote[]      @relation("LoteEliminador")
+  inspeccionesCreadas InspeccionCabecera[] @relation("InspeccionCreador")
+  inspeccionesModificadas InspeccionCabecera[] @relation("InspeccionActualizador")
+  inspeccionesEliminadas InspeccionCabecera[] @relation("InspeccionEliminador")
+  inspeccionesInspector  InspeccionCabecera[] @relation("InspeccionInspector")
+
+  @@index([rolId])
+  @@index([estado])
+  @@map("usuarios")
+}
+
+model UsuarioDepartamento {
+  usuarioId          Int            @map("usuario_id")
+  departamentoId     Int            @map("departamento_id")
+  estado             EstadoRegistro @default(ACTIVO)
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  departamento Departamento @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, departamentoId])
+  @@index([departamentoId])
+  @@index([estado])
+  @@map("usuarios_departamentos")
+}
+
+model UsuarioPermiso {
+  id                 Int               @id @default(autoincrement())
+  usuarioId          Int               @map("usuario_id")
+  permisoId          Int               @map("permiso_id")
+  accion             TipoAccionPermiso // CONCEDER o DENEGAR
+  motivo             String?           @db.VarChar(255)
+  modificadoPor      Int?              @map("modificado_por")
+  fechaVencimiento   DateTime?         @map("fecha_vencimiento")
+  fechaCreacion      DateTime          @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime          @updatedAt @map("fecha_actualizacion")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Restrict)
+
+  @@unique([usuarioId, permisoId], name: "unique_usuario_permiso")
+  @@index([usuarioId])
+  @@index([permisoId])
+  @@map("usuarios_permisos")
+}
+
+// =========================================================================
+// 5. TERMINALES VINCULADAS AL NAVEGADOR
+// =========================================================================
+
+model Terminal {
+  id                 Int            @id @default(autoincrement())
+  nombre             String         @unique @db.VarChar(60) // ej. PC-CORTE-01, TAB-CALIDAD-02
+  credencialHash     String         @unique @map("credencial_hash") @db.VarChar(128)
+  departamentoId     Int            @map("departamento_id")
+  estado             EstadoRegistro @default(ACTIVO)
+  motivoBloqueo      String?        @map("motivo_bloqueo") @db.VarChar(255)
+  fechaRevocacion    DateTime?      @map("fecha_revocacion")
+  fechaUltimoAcceso  DateTime?      @map("fecha_ultimo_acceso")
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  departamento       Departamento        @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+  registrosAuditoria RegistroAuditoria[]
+  inspecciones       InspeccionCabecera[]
+
+  @@index([departamentoId])
+  @@index([estado])
+  @@map("terminales")
+}
+
+// =========================================================================
+// 6. SESIONES DE USUARIO (PERSISTENCIA 10 AÑOS Y ROTACIÓN SEGURA)
+// =========================================================================
+
+model Sesion {
+  id                   Int            @id @default(autoincrement())
+  usuarioId            Int            @map("usuario_id")
+  refreshTokenHash     String         @unique @map("refresh_token_hash") @db.VarChar(128)
+  estado               EstadoRegistro @default(ACTIVO)
+  fechaExpiracion      DateTime       @map("fecha_expiracion")
+  fechaUltimoUso       DateTime       @default(now()) @map("fecha_ultimo_uso")
+  fechaUltimaExtension DateTime?      @map("fecha_ultima_extension")
+  ipOrigen             String?        @map("ip_origen") @db.VarChar(45)
+  agenteUsuario        String?        @map("agente_usuario") @db.VarChar(255)
+  fechaCreacion        DateTime       @default(now()) @map("fecha_creacion")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([refreshTokenHash])
+  @@index([estado, fechaExpiracion])
+  @@map("sesiones")
+}
+
+// =========================================================================
+// 7. REGISTRO DE AUDITORÍA HISTÓRICA
+// =========================================================================
+
+model RegistroAuditoria {
+  id             Int       @id @default(autoincrement())
+  usuarioId      Int?      @map("usuario_id")
+  accion         String    @db.VarChar(100) // ej. USUARIO_CREADO, ROL_MODIFICADO, TERMINAL_REVOCADA
+  entidad        String    @db.VarChar(60) // ej. usuario, rol, permiso, terminal, departamento
+  entidadId      String?   @map("entidad_id") @db.VarChar(60)
+  departamentoId Int?      @map("departamento_id")
+  terminalId     Int?      @map("terminal_id")
+  motivo         String?   @db.VarChar(255)
+  detalles       Json?
+  ipOrigen       String?   @map("ip_origen") @db.VarChar(45)
+  agenteUsuario  String?   @map("agente_usuario") @db.VarChar(255)
+  hashIntegridad String?   @map("hash_integridad") @db.VarChar(64)
+  fecha          DateTime  @default(now()) @db.DateTime(3)
+
+  usuario      Usuario?      @relation("AuditoriaUsuario", fields: [usuarioId], references: [id], onDelete: SetNull)
+  departamento Departamento? @relation(fields: [departamentoId], references: [id], onDelete: SetNull)
+  terminal     Terminal?     @relation(fields: [terminalId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId])
+  @@index([entidad, entidadId])
+  @@index([departamentoId])
+  @@index([terminalId])
+  @@index([fecha])
+  @@map("registros_auditoria")
+}
+
+// =========================================================================
+// 8. CONTROL DE LA CADENA CRIPTOGRÁFICA DE AUDITORÍA (MUTEX TRANSACCIONAL)
+// =========================================================================
+
+model ControlCadenaAuditoria {
+  id                 Int      @id @default(1)
+  ultimoHash         String   @map("ultimo_hash") @db.VarChar(64)
+  ultimoEventoId     Int?     @map("ultimo_evento_id")
+  totalEventos       Int      @default(0) @map("total_eventos")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+
+  @@map("control_cadena_auditoria")
+}
+
+// =========================================================================
+// 9. ESTRUCTURA ORGANIZACIONAL: TIPOS DE OPERACIÓN, LÍNEAS Y ASOCIACIONES
+// =========================================================================
+
+model TipoOperacion {
+  id                 Int            @id @default(autoincrement())
+  codigo             String         @unique @db.VarChar(30)
+  nombre             String         @db.VarChar(100)
+  descripcion        String?        @db.VarChar(255)
+  estado             EstadoRegistro @default(ACTIVO)
+  creadoPor          Int?           @map("creado_por")
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  actualizadoPor     Int?           @map("actualizado_por")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+  eliminadoPor       Int?           @map("eliminado_por")
+  eliminadoEn        DateTime?      @map("eliminado_en")
+
+  lineas             Linea[]
+
+  @@index([estado])
+  @@index([eliminadoEn])
+  @@map("tipos_operacion")
+}
+
+model Linea {
+  id                 Int            @id @default(autoincrement())
+  tipoOperacionId    Int            @map("tipo_operacion_id")
+  codigo             String         @db.VarChar(30)
+  nombre             String         @db.VarChar(100)
+  descripcion        String?        @db.VarChar(255)
+  estado             EstadoRegistro @default(ACTIVO)
+  creadoPor          Int?           @map("creado_por")
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  actualizadoPor     Int?           @map("actualizado_por")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+  eliminadoPor       Int?           @map("eliminado_por")
+  eliminadoEn        DateTime?      @map("eliminado_en")
+
+  tipoOperacion      TipoOperacion        @relation(fields: [tipoOperacionId], references: [id], onDelete: Restrict)
+  departamentos      DepartamentoLinea[]
+  inspecciones       InspeccionCabecera[]
+
+  @@unique([tipoOperacionId, codigo], name: "unique_tipo_linea_codigo")
+  @@index([tipoOperacionId])
+  @@index([estado])
+  @@index([eliminadoEn])
+  @@map("lineas")
+}
+
+model DepartamentoLinea {
+  id                 Int            @id @default(autoincrement())
+  departamentoId     Int            @map("departamento_id")
+  lineaId            Int            @map("linea_id")
+  orden              Int            @default(0)
+  activo             Boolean        @default(true)
+  creadoPor          Int?           @map("creado_por")
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  actualizadoPor     Int?           @map("actualizado_por")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+  eliminadoPor       Int?           @map("eliminado_por")
+  eliminadoEn        DateTime?      @map("eliminado_en")
+
+  departamento       Departamento   @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+  linea              Linea          @relation(fields: [lineaId], references: [id], onDelete: Restrict)
+
+  @@unique([departamentoId, lineaId], name: "unique_depto_linea")
+  @@index([departamentoId])
+  @@index([lineaId])
+  @@index([orden])
+  @@index([activo])
+  @@map("departamentos_lineas")
+}
+
+// =========================================================================
+// 10. CATÁLOGO DE DEFECTOS, SECUENCIA CONCURRENTE Y ASOCIACIONES
+// =========================================================================
+
+model SecuenciaClaveDefecto {
+  id                 Int      @id @default(1)
+  siguienteClave     Int      @default(1836) @map("siguiente_clave")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+
+  @@map("secuencias_clave_defecto")
+}
+
+model Defecto {
+  id                 Int                  @id @default(autoincrement())
+  clave              Int                  @unique
+  defecto            String               @db.VarChar(255)
+  clasificacion      ClasificacionDefecto
+  departamentoId     Int                  @map("departamento_id") // Departamento propietario del defecto
+  activo             Boolean              @default(true)
+  creadoPor          Int                  @map("creado_por")
+  creadoEn           DateTime             @default(now()) @map("creado_en")
+  actualizadoPor     Int?                 @map("actualizado_por")
+  actualizadoEn      DateTime             @updatedAt @map("actualizado_en")
+  eliminadoPor       Int?                 @map("eliminado_por")
+  eliminadoEn        DateTime?            @map("eliminado_en")
+
+  departamento       Departamento         @relation("DefectoDepartamentoPropietario", fields: [departamentoId], references: [id], onDelete: Restrict)
+  creador            Usuario              @relation("DefectoCreador", fields: [creadoPor], references: [id], onDelete: Restrict)
+  actualizador       Usuario?             @relation("DefectoActualizador", fields: [actualizadoPor], references: [id], onDelete: SetNull)
+  eliminador         Usuario?             @relation("DefectoEliminador", fields: [eliminadoPor], references: [id], onDelete: SetNull)
+
+  departamentos      DefectoDepartamento[]
+  etapas             DefectoEtapa[]
+  inspeccionDetalles InspeccionDetalle[]
+
+  @@index([clave])
+  @@index([departamentoId])
+  @@index([activo])
+  @@index([clasificacion])
+  @@index([eliminadoEn])
+  @@map("defectos")
+}
+
+model DefectoEtapa {
+  id                 Int          @id @default(autoincrement())
+  defectoId          Int          @map("defecto_id")
+  departamentoId     Int          @map("departamento_id") // Etapa de auditoría/inspección
+  permitido          Boolean      @default(true) // R = true (permitido), T = false (bloqueado)
+  creadoPor          Int?         @map("creado_por")
+  creadoEn           DateTime     @default(now()) @map("creado_en")
+  actualizadoPor     Int?         @map("actualizado_por")
+  actualizadoEn      DateTime     @updatedAt @map("actualizado_en")
+
+  defecto            Defecto      @relation(fields: [defectoId], references: [id], onDelete: Cascade)
+  departamento       Departamento @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+
+  @@unique([defectoId, departamentoId], name: "unique_defecto_etapa")
+  @@index([defectoId])
+  @@index([departamentoId])
+  @@index([permitido])
+  @@map("defectos_etapas")
+}
+
+model DefectoDepartamento {
+  id                 Int          @id @default(autoincrement())
+  defectoId          Int          @map("defecto_id")
+  departamentoId     Int          @map("departamento_id")
+  activo             Boolean      @default(true)
+  creadoPor          Int?         @map("creado_por")
+  creadoEn           DateTime     @default(now()) @map("creado_en")
+  actualizadoPor     Int?         @map("actualizado_por")
+  actualizadoEn      DateTime     @updatedAt @map("actualizado_en")
+  eliminadoPor       Int?         @map("eliminado_por")
+  eliminadoEn        DateTime?    @map("eliminado_en")
+
+  defecto            Defecto      @relation(fields: [defectoId], references: [id], onDelete: Restrict)
+  departamento       Departamento @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+
+  @@unique([defectoId, departamentoId], name: "unique_defecto_departamento")
+  @@index([defectoId])
+  @@index([departamentoId])
+  @@index([activo])
+  @@map("defectos_departamentos")
+}
+
+// =========================================================================
+// 11. MAESTRO DE PRODUCCIÓN: LOTES
+// =========================================================================
+
+model ProduccionLote {
+  id                 Int                  @id @default(autoincrement())
+  listaLote          String               @map("lista_lote") @db.VarChar(60)
+  lista              String               @db.VarChar(30)
+  lote               String               @unique @db.VarChar(30)
+  idProducto         String               @map("id_producto") @db.VarChar(60)
+  modelo             String               @db.VarChar(30)
+  cantidad           Decimal              @db.Decimal(12, 4)
+  descripcion        String?              @db.VarChar(255)
+  cliente            String               @db.VarChar(150)
+  horma              String?              @db.VarChar(60)
+  estado             EstadoRegistro       @default(ACTIVO)
+  creadoPor          Int?                 @map("creado_por")
+  fechaCreacion      DateTime             @default(now()) @map("fecha_creacion")
+  actualizadoPor     Int?                 @map("actualizado_por")
+  fechaActualizacion DateTime             @updatedAt @map("fecha_actualizacion")
+  eliminadoPor       Int?                 @map("eliminado_por")
+  eliminadoEn        DateTime?            @map("eliminado_en")
+
+  creador            Usuario?             @relation("LoteCreador", fields: [creadoPor], references: [id], onDelete: SetNull)
+  actualizador       Usuario?             @relation("LoteActualizador", fields: [actualizadoPor], references: [id], onDelete: SetNull)
+  eliminador         Usuario?             @relation("LoteEliminador", fields: [eliminadoPor], references: [id], onDelete: SetNull)
+
+  inspecciones       InspeccionCabecera[]
+
+  @@index([lote])
+  @@index([listaLote])
+  @@index([lista])
+  @@index([idProducto])
+  @@index([modelo])
+  @@index([cliente])
+  @@index([estado])
+  @@index([eliminadoEn])
+  @@map("produccion_lotes")
+}
+
+// =========================================================================
+// 12. MODELO TRANSACCIONAL DE INSPECCIONES Y DEFECTOS
+// =========================================================================
+
+enum EstadoInspeccion {
+  APROBADO
+  RECHAZADO
+  CORREGIDO
+  PENDIENTE
+
+  @@map("estado_inspeccion")
+}
+
+model InspeccionCabecera {
+  id                      Int                 @id @default(autoincrement())
+  folio                   String              @unique @db.VarChar(30)
+  loteId                  Int                 @map("lote_id")
+  inspectorId             Int                 @map("inspector_id")
+  departamentoAuditoriaId Int                 @map("departamento_auditoria_id")
+  terminalId              Int?                @map("terminal_id")
+  lineaId                 Int?                @map("linea_id")
+  horma                   String?             @db.VarChar(60)
+  fechaInspeccion         DateTime            @default(now()) @map("fecha_inspeccion")
+  estado                  EstadoInspeccion    @default(PENDIENTE)
+  notas                   String?             @db.VarChar(500)
+  creadoPor               Int?                @map("creado_por")
+  fechaCreacion           DateTime            @default(now()) @map("fecha_creacion")
+  actualizadoPor          Int?                @map("actualizado_por")
+  fechaActualizacion      DateTime            @updatedAt @map("fecha_actualizacion")
+  eliminadoPor            Int?                @map("eliminado_por")
+  eliminadoEn             DateTime?           @map("eliminado_en")
+
+  lote                    ProduccionLote      @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  inspector               Usuario             @relation("InspeccionInspector", fields: [inspectorId], references: [id], onDelete: Restrict)
+  departamentoAuditoria   Departamento        @relation("InspeccionDeptoAuditoria", fields: [departamentoAuditoriaId], references: [id], onDelete: Restrict)
+  terminal                Terminal?           @relation(fields: [terminalId], references: [id], onDelete: SetNull)
+  linea                   Linea?              @relation(fields: [lineaId], references: [id], onDelete: SetNull)
+  creador                 Usuario?            @relation("InspeccionCreador", fields: [creadoPor], references: [id], onDelete: SetNull)
+  actualizador            Usuario?            @relation("InspeccionActualizador", fields: [actualizadoPor], references: [id], onDelete: SetNull)
+  eliminador              Usuario?            @relation("InspeccionEliminador", fields: [eliminadoPor], references: [id], onDelete: SetNull)
+
+  detalles                InspeccionDetalle[]
+
+  @@index([folio])
+  @@index([loteId])
+  @@index([inspectorId])
+  @@index([departamentoAuditoriaId])
+  @@index([terminalId])
+  @@index([lineaId])
+  @@index([fechaInspeccion])
+  @@index([estado])
+  @@index([eliminadoEn])
+  @@map("inspecciones_cabecera")
+}
+
+model InspeccionDetalle {
+  id                  Int                @id @default(autoincrement())
+  inspeccionId        Int                @map("inspeccion_id")
+  defectoId           Int                @map("defecto_id")
+  defDeptoId          Int                @map("def_depto_id")
+  paresDefectuosos    Int                @default(1) @map("pares_defectuosos")
+  notas               String?            @db.VarChar(255)
+  creadoPor           Int?               @map("creado_por")
+  fechaCreacion       DateTime           @default(now()) @map("fecha_creacion")
+  actualizadoPor      Int?               @map("actualizado_por")
+  fechaActualizacion  DateTime           @updatedAt @map("fecha_actualizacion")
+  eliminadoPor        Int?               @map("eliminado_por")
+  eliminadoEn         DateTime?          @map("eliminado_en")
+
+  inspeccion          InspeccionCabecera @relation(fields: [inspeccionId], references: [id], onDelete: Cascade)
+  defecto             Defecto            @relation(fields: [defectoId], references: [id], onDelete: Restrict)
+  departamentoResponsable Departamento   @relation("DetalleDeptoResponsable", fields: [defDeptoId], references: [id], onDelete: Restrict)
+
+  @@index([inspeccionId])
+  @@index([defectoId])
+  @@index([defDeptoId])
+  @@index([eliminadoEn])
+  @@map("inspecciones_detalle")
+}
+
+// =========================================================================
+// 13. ALMACENAMIENTO HISTÓRICO DE AUDITORÍAS / INSPECCIONES DE ORIGEN
+// =========================================================================
+
+model InspeccionHistoricaOrigen {
+  id             Int       @id @default(autoincrement())
+  noOriginal     String?   @map("no_original") @db.VarChar(30)
+  departamento   String?   @db.VarChar(60)
+  fechaTexto     String?   @map("fecha_texto") @db.VarChar(60)
+  fechaParseada  DateTime? @map("fecha_parseada")
+  lista          String?   @db.VarChar(30)
+  lote           String?   @db.VarChar(30)
+  linea          String?   @db.VarChar(60)
+  modelo         String?   @db.VarChar(30)
+  descripcion    String?   @db.VarChar(255)
+  defDepto       String?   @map("def_depto") @db.VarChar(60)
+  defectoClave   Int?      @map("defecto_clave")
+  defectoNombre  String?   @map("defecto_nombre") @db.VarChar(255)
+  pares          Int?      @default(0)
+  horma          String?   @db.VarChar(60)
+  usuarioTexto   String?   @map("usuario_texto") @db.VarChar(150)
+  archivoOrigen  String?   @map("archivo_origen") @db.VarChar(100)
+  fechaCarga     DateTime  @default(now()) @map("fecha_carga")
+
+  @@index([lote])
+  @@index([lista])
+  @@index([modelo])
+  @@index([noOriginal])
+  @@index([defDepto])
+  @@index([defectoClave])
+  @@index([archivoOrigen])
+  @@map("inspecciones_historicas_origen")
+}
+
+

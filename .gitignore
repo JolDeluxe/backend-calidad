@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build and output
+dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and databases
+logs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+backup_auth_pre_migration.json
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

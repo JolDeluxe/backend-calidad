@@ -1,0 +1,101 @@
+import { Router } from "express";
+import { defectosController } from "./controllers/defectos.controller";
+import { authenticate, requireRole } from "../../middlewares/auth";
+import { validate } from "../../middlewares/validate";
+import {
+  defectoIdParamSchema,
+  getDefectosQuerySchema,
+  createDefectoSchema,
+  updateDefectoSchema,
+  updateClaveDefectoSchema,
+  updateEstadoDefectoSchema,
+  syncDefectoDepartamentosSchema,
+  toggleDefectoDepartamentoSchema,
+  syncDefectoEtapasSchema,
+} from "./defectos.schema";
+
+const router = Router();
+
+router.use(authenticate);
+
+router.get(
+  "/conteos-lineas",
+  (req, res, next) => defectosController.getConteoLineas(req, res, next)
+);
+
+router.get(
+  "/",
+  validate({ query: getDefectosQuerySchema }),
+  (req, res, next) => defectosController.getDefectos(req, res, next)
+);
+
+router.get(
+  "/:id",
+  validate({ params: defectoIdParamSchema }),
+  (req, res, next) => defectosController.getDefectoById(req, res, next)
+);
+
+router.post(
+  "/",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ body: createDefectoSchema }),
+  (req, res, next) => defectosController.createDefecto(req, res, next)
+);
+
+router.patch(
+  "/:id",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema, body: updateDefectoSchema }),
+  (req, res, next) => defectosController.updateDefecto(req, res, next)
+);
+
+router.patch(
+  "/:id/clave",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema, body: updateClaveDefectoSchema }),
+  (req, res, next) => defectosController.updateClaveDefecto(req, res, next)
+);
+
+router.patch(
+  "/:id/estado",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema, body: updateEstadoDefectoSchema }),
+  (req, res, next) => defectosController.updateEstadoDefecto(req, res, next)
+);
+
+router.delete(
+  "/:id",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema }),
+  (req, res, next) => defectosController.deleteDefecto(req, res, next)
+);
+
+router.post(
+  "/:id/reactivar",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema }),
+  (req, res, next) => defectosController.reactivarDefecto(req, res, next)
+);
+
+router.put(
+  "/:id/departamentos",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema, body: syncDefectoDepartamentosSchema }),
+  (req, res, next) => defectosController.syncDefectoDepartamentos(req, res, next)
+);
+
+router.patch(
+  "/:id/departamentos/:departamentoId",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ body: toggleDefectoDepartamentoSchema }),
+  (req, res, next) => defectosController.toggleDefectoDepartamento(req, res, next)
+);
+
+router.put(
+  "/:id/etapas",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ params: defectoIdParamSchema, body: syncDefectoEtapasSchema }),
+  (req, res, next) => defectosController.syncDefectoEtapas(req, res, next)
+);
+
+export const defectosRouter = router;
