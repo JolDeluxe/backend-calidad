@@ -2,6 +2,7 @@ import { prisma } from "../../../config/database";
 import { NotFoundError, ConflictError, BadRequestError } from "../../../utils/errors";
 import { auditService } from "../../audit/services/audit.service";
 import type { Prisma } from "@prisma/client";
+import { codificacionDefectosService } from "./codificacion-defectos.service";
 
 export interface GetDefectosFiltros {
   clave?: number;
@@ -21,50 +22,6 @@ export interface GetDefectosFiltros {
 }
 
 export class DefectosService {
-  /**
-   * Generación atómica y concurrente de la siguiente clave de defecto mediante bloqueo pesimista en InnoDB.
-   */
-  async obtenerYSiguienteClave(tx: any): Promise<number> {
-    const lockRows = await tx.$queryRaw<Array<{ id: number; siguiente_clave: number }>>`
-      SELECT id, siguiente_clave
-      FROM secuencias_clave_defecto
-      WHERE id = 1
-      FOR UPDATE
-    `;
-
-    let claveAsignada = 1836;
-
-    if (lockRows && lockRows.length > 0) {
-      claveAsignada = lockRows[0].siguiente_clave;
-    } else {
-      await tx.$executeRaw`
-        INSERT INTO secuencias_clave_defecto (id, siguiente_clave, fecha_actualizacion)
-        VALUES (1, 1836, NOW(3))
-      `;
-      claveAsignada = 1836;
-    }
-
-    // Asegurar que no coincida con una clave existente en la tabla defectos
-    const maxReal = await tx.defecto.findFirst({
-      orderBy: { clave: "desc" },
-      select: { clave: true },
-    });
-
-    if (maxReal && maxReal.clave >= claveAsignada) {
-      claveAsignada = maxReal.clave + 1;
-    }
-
-    // Incrementar la secuencia para el siguiente uso
-    await tx.$executeRaw`
-      UPDATE secuencias_clave_defecto
-      SET siguiente_clave = ${claveAsignada + 1},
-          fecha_actualizacion = NOW(3)
-      WHERE id = 1
-    `;
-
-    return claveAsignada;
-  }
-
   async getDefectos(filtros: GetDefectosFiltros = {}) {
     const page = Math.max(1, filtros.page || 1);
     const limit = Math.min(1000, Math.max(1, filtros.limit || 20));
@@ -99,6 +56,15 @@ export class DefectosService {
 
     if (filtros.activo !== undefined) {
       where.activo = filtros.activo;
+    }
+
+    if (filtros.departamentoId) {
+      where.departamentoId = filtros.departamentoId;
+    } else if (filtros.categoriaDepartamentoId) {
+      where.departamento = {
+        categoriaDepartamentoId: filtros.categoriaDepartamentoId,
+        eliminadoEn: null,
+      };
     }
 
     if (filtros.etapaId) {
@@ -170,25 +136,6 @@ export class DefectosService {
           },
         },
       ];
-    } else if (filtros.departamentoId) {
-      where.departamentos = {
-        some: {
-          departamentoId: filtros.departamentoId,
-          activo: true,
-          eliminadoEn: null,
-        },
-      };
-    } else if (filtros.categoriaDepartamentoId) {
-      where.departamentos = {
-        some: {
-          departamento: {
-            categoriaDepartamentoId: filtros.categoriaDepartamentoId,
-            eliminadoEn: null,
-          },
-          activo: true,
-          eliminadoEn: null,
-        },
-      };
     }
 
     const [total, items] = await Promise.all([
@@ -292,6 +239,7 @@ export class DefectosService {
       defecto: string;
       clasificacion: "CRITICO" | "MAYOR" | "MENOR";
       departamentoId: number;
+      lineaId?: number;
       departamentosIds?: number[];
       etapasPermitidasIds?: number[];
     },
@@ -312,8 +260,12 @@ export class DefectosService {
       throw new BadRequestError("El departamento propietario especificado no existe o está inactivo");
     }
 
+    // La clave se asigna según el grupo de codificación (línea + departamento propietario).
+    const grupo = await codificacionDefectosService.resolverGrupo(data.lineaId, data.departamentoId);
+
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const clave = await this.obtenerYSiguienteClave(tx);
+      const asignacion = await codificacionDefectosService.asignarClaves(tx, grupo.id, 1, usuarioId);
+      const clave = asignacion.claves[0];
 
       const deptoPropietarioId = data.departamentoId;
 
@@ -341,12 +293,37 @@ export class DefectosService {
         }
       }
 
-      if (data.etapasPermitidasIds && data.etapasPermitidasIds.length > 0) {
-        for (const etapaDeptoId of data.etapasPermitidasIds) {
+      // Sincronizar matriz de etapas de detección (DefectoEtapa):
+      // Si se indicaron etapasPermitidasIds explícitas se usan; si no, por defecto se inicializan
+      // con los departamentos evaluadores (departamentosIds) o todos los de la línea de producción.
+      const etapasIds = (data.etapasPermitidasIds && data.etapasPermitidasIds.length > 0)
+        ? data.etapasPermitidasIds
+        : (data.departamentosIds && data.departamentosIds.length > 0)
+        ? data.departamentosIds
+        : [];
+
+      if (etapasIds.length > 0) {
+        for (const etapaDeptoId of etapasIds) {
           await tx.defectoEtapa.create({
             data: {
               defectoId: nuevo.id,
               departamentoId: etapaDeptoId,
+              permitido: true,
+              creadoPor: usuarioId,
+            },
+          });
+        }
+      } else {
+        // Si no se pasaron etapas ni departamentos específicos, habilitar todos los de su línea de producción
+        const asignacionesLinea = await tx.departamentoLinea.findMany({
+          where: { lineaId: grupo.lineaId, activo: true, eliminadoEn: null },
+          select: { departamentoId: true },
+        });
+        for (const a of asignacionesLinea) {
+          await tx.defectoEtapa.create({
+            data: {
+              defectoId: nuevo.id,
+              departamentoId: a.departamentoId,
               permitido: true,
               creadoPor: usuarioId,
             },
@@ -415,8 +392,7 @@ export class DefectosService {
   async updateClaveDefecto(
     id: number,
     nuevaClave: number,
-    motivo?: string,
-    usuarioId: number = 1
+    usuarioId: number
   ) {
     const actual = await this.getDefectoById(id);
 
@@ -462,7 +438,6 @@ export class DefectosService {
         modulo: "CATALOGOS",
         entidad: "Defecto",
         entidadId: id.toString(),
-        motivo: motivo || "Actualización de clave de defecto",
         descripcion: `Modificación de clave para defecto #${actual.clave} -> #${nuevaClave}`,
         valoresAnteriores: { clave: actual.clave },
         valoresPosteriores: { clave: nuevaClave },

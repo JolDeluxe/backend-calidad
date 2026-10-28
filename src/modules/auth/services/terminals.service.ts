@@ -20,11 +20,50 @@ export class TerminalsService {
   }
 
   /**
+   * Genera el siguiente nombre secuencial administrativo para una terminal según su departamento.
+   * Por ejemplo: PC-MONTADO-01, PC-MONTADO-02, etc.
+   */
+  async generateSequentialName(departamentoId: number): Promise<string> {
+    const depto = await prisma.departamento.findUnique({
+      where: { id: departamentoId },
+    });
+    if (!depto) {
+      throw new NotFoundError("Departamento no encontrado");
+    }
+
+    const basePrefix = `PC-${depto.codigo.toUpperCase()}-`;
+    const terminalesDepto = await prisma.terminal.findMany({
+      where: {
+        departamentoId,
+        nombre: { startsWith: basePrefix },
+      },
+      select: { nombre: true },
+    });
+
+    let maxNum = 0;
+    for (const t of terminalesDepto) {
+      const match = t.nombre.match(new RegExp(`^${basePrefix}(\\d+)$`));
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+
+    const nextNum = (maxNum + 1).toString().padStart(2, "0");
+    return `${basePrefix}${nextNum}`;
+  }
+
+  /**
    * Registra una nueva terminal asignada a un departamento.
    */
-  async createTerminal(data: { nombre: string; departamentoId: number; usuarioAuditId?: number }) {
+  async createTerminal(data: { nombre?: string; departamentoId: number; usuarioAuditId?: number }) {
+    let finalNombre = data.nombre?.trim();
+    if (!finalNombre) {
+      finalNombre = await this.generateSequentialName(data.departamentoId);
+    }
+
     const existente = await prisma.terminal.findUnique({
-      where: { nombre: data.nombre },
+      where: { nombre: finalNombre },
     });
     if (existente) {
       throw new ConflictError("Ya existe una terminal con ese nombre administrativo");
@@ -37,7 +76,7 @@ export class TerminalsService {
     return await prisma.$transaction(async (tx) => {
       const terminal = await tx.terminal.create({
         data: {
-          nombre: data.nombre,
+          nombre: finalNombre,
           departamentoId: data.departamentoId,
           credencialHash,
           estado: "ACTIVO",

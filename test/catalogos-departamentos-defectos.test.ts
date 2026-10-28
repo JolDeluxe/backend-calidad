@@ -189,7 +189,6 @@ describe("Catálogos de Departamentos y Defectos — Pruebas Exhaustivas", () =>
       },
       body: JSON.stringify({
         nuevaClave,
-        motivo: "Reasignación administrativa por homologación de códigos legacy",
       }),
     });
 
@@ -237,7 +236,6 @@ describe("Catálogos de Departamentos y Defectos — Pruebas Exhaustivas", () =>
       },
       body: JSON.stringify({
         nuevaClave: 1101, // ya existente
-        motivo: "Intento inválido de duplicación",
       }),
     });
 
@@ -291,7 +289,6 @@ describe("Catálogos de Departamentos y Defectos — Pruebas Exhaustivas", () =>
       },
       body: JSON.stringify({
         nuevaClave: def1.data.clave,
-        motivo: "Intento de reciclar clave eliminada",
       }),
     });
 

@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { env } from "../../../config/env";
 
 export interface TokenPayload {
@@ -15,20 +15,85 @@ interface DecodedToken extends TokenPayload {
   exp: number;
 }
 
+const ENC_PREFIX = "enc:v1:";
+
 export class SecurityService {
-  hashPassword(password: string): string {
-    const salt = randomBytes(16).toString("hex");
-    const hash = createHmac("sha256", salt).update(password).digest("hex");
-    return `${salt}:${hash}`;
+  /**
+   * Obtiene una clave de 32 bytes derivada del JWT_SECRET
+   */
+  private getEncryptionKey(): Buffer {
+    return createHmac("sha256", "cuadra-calidad-password-key").update(env.JWT_SECRET).digest();
   }
 
-  verifyPassword(password: string, storedHash: string): boolean {
-    const parts = storedHash.split(":");
-    if (parts.length !== 2) return false;
-    const [salt, originalHash] = parts;
-    if (!salt || !originalHash) return false;
-    const computedHash = createHmac("sha256", salt).update(password).digest("hex");
-    return computedHash === originalHash;
+  /**
+   * Cifra la contraseña con AES-256-GCM para que los administradores autorizados puedan consultarla.
+   */
+  encryptPassword(password: string): string {
+    const key = this.getEncryptionKey();
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", key, iv);
+    let encrypted = cipher.update(password, "utf8", "hex");
+    encrypted += cipher.final("hex");
+    const tag = cipher.getAuthTag().toString("hex");
+    return `${ENC_PREFIX}${iv.toString("hex")}:${tag}:${encrypted}`;
+  }
+
+  /**
+   * Desencripta una contraseña cifrada con encryptPassword.
+   * Retorna null si no es un formato cifrado reversible o si la integridad falla.
+   */
+  decryptPassword(storedValue: string): string | null {
+    if (!storedValue || !storedValue.startsWith(ENC_PREFIX)) {
+      return null;
+    }
+    try {
+      const payload = storedValue.slice(ENC_PREFIX.length);
+      const parts = payload.split(":");
+      if (parts.length !== 3) return null;
+      const [ivHex, tagHex, encryptedHex] = parts;
+      if (!ivHex || !tagHex || !encryptedHex) return null;
+
+      const key = this.getEncryptionKey();
+      const iv = Buffer.from(ivHex, "hex");
+      const tag = Buffer.from(tagHex, "hex");
+      const decipher = createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(tag);
+      let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+      decrypted += decipher.final("utf8");
+      return decrypted;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Genera el valor para almacenar una contraseña.
+   * Por defecto utiliza el cifrado reversible institucional.
+   */
+  hashPassword(password: string): string {
+    return this.encryptPassword(password);
+  }
+
+  /**
+   * Verifica la contraseña ya sea que esté cifrada con AES-256-GCM o con el hash legado (salt:hash).
+   */
+  verifyPassword(password: string, storedValue: string): boolean {
+    if (storedValue.startsWith(ENC_PREFIX)) {
+      const decrypted = this.decryptPassword(storedValue);
+      return decrypted === password;
+    }
+
+    // Compatibilidad retroactiva con salt:hash legado
+    const parts = storedValue.split(":");
+    if (parts.length === 2) {
+      const [salt, originalHash] = parts;
+      if (salt && originalHash) {
+        const computedHash = createHmac("sha256", salt).update(password).digest("hex");
+        return computedHash === originalHash;
+      }
+    }
+
+    return false;
   }
 
   generateRefreshToken(): string {

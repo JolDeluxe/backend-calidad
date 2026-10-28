@@ -17,6 +17,8 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
   let def1705Id: number;
   let def1632Id: number;
   let loteTest: any;
+  const terminalesPorDepto = new Map<number, { id: number; nombre: string; departamentoId: number }>();
+  const terminalDe = (deptoId: number) => terminalesPorDepto.get(deptoId)!;
 
   beforeAll(async () => {
     inspeccionesService = new InspeccionesService();
@@ -32,6 +34,17 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
     deptoMontadoId = montado!.id;
     deptoAcabadoId = acabado!.id;
 
+    // Fase 3/4: la captura exige terminal validada; el departamento de auditoría procede de ella
+    for (const d of [corte!, preliminares!, montado!, acabado!]) {
+      const nombre = `TEST-MATRIZ-${d.codigo}`;
+      const t = await prisma.terminal.upsert({
+        where: { nombre },
+        update: { departamentoId: d.id, estado: "ACTIVO" },
+        create: { nombre, credencialHash: `test-matriz-${d.codigo}-${Date.now()}`, departamentoId: d.id },
+      });
+      terminalesPorDepto.set(d.id, { id: t.id, nombre: t.nombre, departamentoId: d.id });
+    }
+
     const d1101 = await prisma.defecto.findUnique({ where: { clave: 1101 } });
     const d1201 = await prisma.defecto.findUnique({ where: { clave: 1201 } });
     const d1401 = await prisma.defecto.findUnique({ where: { clave: 1401 } });
@@ -45,7 +58,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
     def1632Id = d1632!.id;
 
     loteTest = await prisma.produccionLote.findFirst({
-      where: { estado: "ACTIVO", eliminadoEn: null },
+      where: { estado: "ACTIVO", eliminadoEn: null, cantidad: { gte: 5 } },
     });
     expect(loteTest).toBeDefined();
   });
@@ -100,7 +113,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
     it("A3. El departamento responsable en detalle se asigna desde el catálogo y no es manipulable", async () => {
       const res = await inspeccionesService.createInspeccion({
         lote: loteTest.lote,
-        departamentoAuditoriaId: deptoPreliminaresId,
+        terminal: terminalDe(deptoPreliminaresId),
         usuarioId: 1,
         detalles: [
           {
@@ -124,7 +137,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
     it("B1. Inspección en PRELIMINARES permite registrar defecto originario de CORTE (1101)", async () => {
       const res = await inspeccionesService.createInspeccion({
         lote: loteTest.lote,
-        departamentoAuditoriaId: deptoPreliminaresId,
+        terminal: terminalDe(deptoPreliminaresId),
         usuarioId: 1,
         detalles: [
           {
@@ -143,7 +156,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
       expect(
         inspeccionesService.createInspeccion({
           lote: loteTest.lote,
-          departamentoAuditoriaId: deptoCorteId,
+          terminal: terminalDe(deptoCorteId),
           usuarioId: 1,
           detalles: [
             {
@@ -159,7 +172,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
       expect(
         inspeccionesService.createInspeccion({
           lote: loteTest.lote,
-          departamentoAuditoriaId: deptoMontadoId,
+          terminal: terminalDe(deptoMontadoId),
           usuarioId: 1,
           detalles: [
             {
@@ -179,7 +192,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
       await expect(
         inspeccionesService.createInspeccion({
           lote: loteTest.lote,
-          departamentoAuditoriaId: deptoCorteId,
+          terminal: terminalDe(deptoCorteId),
           usuarioId: 1,
           detalles: [
             { defectoId: def1101Id, paresDefectuosos: 1 }, // Válido en Corte
@@ -224,7 +237,7 @@ describe("Auditoría Exhaustiva: Matriz de Defectos por Etapas MBC", () => {
     it("C2. Defecto 1632 puede registrarse en MONTADO y asigna AVIOS como departamento responsable", async () => {
       const res = await inspeccionesService.createInspeccion({
         lote: loteTest.lote,
-        departamentoAuditoriaId: deptoMontadoId,
+        terminal: terminalDe(deptoMontadoId),
         usuarioId: 1,
         detalles: [
           {

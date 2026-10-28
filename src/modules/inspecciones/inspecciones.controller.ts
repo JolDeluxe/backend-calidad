@@ -1,30 +1,80 @@
 import type { Request, Response, NextFunction } from "express";
 import { inspeccionesService } from "./services/inspecciones.service";
 import { sendSuccess, sendCreated } from "../../utils/response";
+import { ForbiddenError, BadRequestError } from "../../utils/errors";
+import { idempotencyKeySchema } from "./inspecciones.schema";
+import type { AlcanceHistorial } from "./inspecciones.access";
+
+const reqInfoDe = (req: Request) => ({
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+  method: req.method,
+  url: req.originalUrl || req.url,
+});
 
 export class InspeccionesController {
+  async cancelarDetalle(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const motivoVal = req.body?.motivo !== undefined ? String(req.body.motivo).trim() : undefined;
+      const resultado = await inspeccionesService.cancelarDetalleInspeccion(Number(req.params.id), {
+        usuarioId: req.user!.usuarioId,
+        motivo: motivoVal || "Eliminación de defecto en estación",
+        reqInfo: reqInfoDe(req),
+      });
+      sendSuccess(res, resultado, "Registro de defecto eliminado exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recuperarDetalle(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const motivoVal = req.body?.motivo !== undefined ? String(req.body.motivo).trim() : undefined;
+      const resultado = await inspeccionesService.recuperarDetalleInspeccion(Number(req.params.id), {
+        usuarioId: req.user!.usuarioId,
+        motivo: motivoVal || "Recuperación de defecto en estación",
+        reqInfo: reqInfoDe(req),
+      });
+      sendSuccess(res, resultado, "Registro de defecto recuperado exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createInspeccion(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { lote, lineaId, departamentoAuditoriaId, horma, notas, detalles } = req.body;
+      const { lote, lineaId, lineaTexto, horma, notas, detalles } = req.body;
 
-      const resultado = await inspeccionesService.createInspeccion({
+      let claveIdempotencia: string | undefined;
+      const claveHeader = req.headers["idempotency-key"];
+      if (claveHeader !== undefined) {
+        const parsed = idempotencyKeySchema.safeParse(Array.isArray(claveHeader) ? claveHeader[0] : claveHeader);
+        if (!parsed.success) {
+          throw new BadRequestError(parsed.error.issues[0]?.message ?? "Clave de idempotencia no válida");
+        }
+        claveIdempotencia = parsed.data;
+      }
+
+      const { inspeccion, repetida } = await inspeccionesService.registrarInspeccion({
         lote,
         lineaId,
-        departamentoAuditoriaId,
+        lineaTexto,
         horma,
         notas,
         detalles,
         usuarioId: req.user!.usuarioId,
         terminal: req.terminal,
-        reqInfo: {
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-          method: req.method,
-          url: req.originalUrl || req.url,
-        },
+        claveIdempotencia,
+        reqInfo: reqInfoDe(req),
       });
 
-      sendCreated(res, resultado, "Inspección registrada exitosamente");
+      if (repetida) {
+        // Reintento idempotente: misma inspección, sin duplicar registros
+        res.setHeader("Idempotent-Replayed", "true");
+        sendSuccess(res, inspeccion, "Inspección ya registrada previamente (reintento idempotente)");
+        return;
+      }
+      sendCreated(res, inspeccion, "Inspección registrada exitosamente");
     } catch (error) {
       next(error);
     }
@@ -32,44 +82,66 @@ export class InspeccionesController {
 
   async getFilasInspeccion(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const {
-        periodo,
-        busqueda,
-        lote,
-        defectoClave,
-        departamentoAuditoriaId,
-        inspectorId,
-        mes,
-        anio,
-        page,
-        limit,
-      } = req.query as unknown as {
-        periodo?: "hoy" | "ultimos" | "todos";
-        busqueda?: string;
-        lote?: string;
-        defectoClave?: number;
-        departamentoAuditoriaId?: number;
-        inspectorId?: number;
-        mes?: number;
-        anio?: number;
-        page: number;
-        limit: number;
-      };
+      // `req.query` ya fue validado y normalizado por getInspeccionesQuerySchema
+      const q = req.query as unknown as Record<string, any>;
+      const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
+
+      if (q.soloEliminados && !alcance.puedeVerEliminados) {
+        throw new ForbiddenError("Acceso denegado: falta el permiso 'defectos.eliminar' para ver registros eliminados");
+      }
 
       const resultado = await inspeccionesService.getFilasInspeccion({
-        periodo: periodo || "ultimos",
-        busqueda,
-        lote,
-        defectoClave: defectoClave ? Number(defectoClave) : undefined,
-        departamentoAuditoriaId: departamentoAuditoriaId ? Number(departamentoAuditoriaId) : undefined,
-        inspectorId: inspectorId ? Number(inspectorId) : undefined,
-        mes: mes ? Number(mes) : undefined,
-        anio: anio ? Number(anio) : undefined,
-        page: Number(page) || 1,
-        limit: Number(limit) || 30,
+        periodo: q.periodo || "ultimos",
+        busqueda: q.busqueda || undefined,
+        lote: q.lote || undefined,
+        defectoClave: q.defectoClave,
+        departamentoId: q.departamentoId,
+        departamentoAuditoriaId: q.departamentoAuditoriaId,
+        departamentoResponsableId: q.departamentoResponsableId,
+        clasificacion: q.clasificacion,
+        lineaId: q.lineaId,
+        lineaTexto: q.lineaTexto || undefined,
+        // Sin alcance general, el filtro por inspector se fuerza SIEMPRE al propio usuario (ignora el valor del cliente)
+        inspectorId: alcance.general ? q.inspectorId : req.user!.usuarioId,
+        terminalId: q.terminalId,
+        fechaDesde: q.fechaDesde ? new Date(`${q.fechaDesde}T00:00:00.000Z`) : undefined,
+        fechaHasta: q.fechaHasta ? new Date(`${q.fechaHasta}T23:59:59.999Z`) : undefined,
+        mes: q.mes,
+        anio: q.anio,
+        soloEliminados: q.soloEliminados === true,
+        page: q.page || 1,
+        limit: q.limit || 30,
       });
 
       sendSuccess(res, resultado, "Filas de inspección recuperadas exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getDetalle(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
+      const incluirEliminados = (req.query as any).incluirEliminados === true;
+      if (incluirEliminados && !alcance.puedeVerEliminados) {
+        throw new ForbiddenError("Acceso denegado: falta el permiso 'defectos.eliminar' para ver registros eliminados");
+      }
+
+      const detalle = await inspeccionesService.getDetalleInspeccion(Number(req.params.id), {
+        soloPropiaDeUsuarioId: alcance.general ? undefined : req.user!.usuarioId,
+        incluirEliminados,
+        incluirTrazabilidad: alcance.puedeVerTrazabilidad,
+      });
+      sendSuccess(res, detalle, "Detalle de inspección recuperado exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getInspectores(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const inspectores = await inspeccionesService.getInspectores();
+      sendSuccess(res, inspectores, "Inspectores recuperados exitosamente");
     } catch (error) {
       next(error);
     }

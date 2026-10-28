@@ -60,6 +60,7 @@ model Departamento {
   codigo                  String                 @unique @db.VarChar(30)
   nombre                  String                 @db.VarChar(100)
   categoriaDepartamentoId Int?                   @map("categoria_departamento_id")
+  numeroLineas            Int                    @default(1) @map("numero_lineas")
   estado                  EstadoRegistro         @default(ACTIVO)
   creadoPor               Int?                   @map("creado_por")
   fechaCreacion           DateTime               @default(now()) @map("fecha_creacion")
@@ -78,6 +79,7 @@ model Departamento {
   defectosPropietarios    Defecto[]              @relation("DefectoDepartamentoPropietario")
   inspeccionesRealizadas  InspeccionCabecera[]  @relation("InspeccionDeptoAuditoria")
   defectosResponsable     InspeccionDetalle[]   @relation("DetalleDeptoResponsable")
+  gruposCodificacion      GrupoCodificacionDefecto[]
 
   @@index([categoriaDepartamentoId])
   @@index([estado])
@@ -169,6 +171,7 @@ model Usuario {
   inspeccionesModificadas InspeccionCabecera[] @relation("InspeccionActualizador")
   inspeccionesEliminadas InspeccionCabecera[] @relation("InspeccionEliminador")
   inspeccionesInspector  InspeccionCabecera[] @relation("InspeccionInspector")
+  codigosRecuperacionTerminal TerminalRecuperacionCodigo[] @relation("CodigoRecuperacionCreador")
 
   @@index([rolId])
   @@index([estado])
@@ -230,10 +233,34 @@ model Terminal {
   departamento       Departamento        @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
   registrosAuditoria RegistroAuditoria[]
   inspecciones       InspeccionCabecera[]
+  codigosRecuperacion TerminalRecuperacionCodigo[]
 
   @@index([departamentoId])
   @@index([estado])
   @@map("terminales")
+}
+
+// =========================================================================
+// 5.1 CÓDIGOS TEMPORALES DE RECUPERACIÓN DE TERMINALES (OTP)
+// =========================================================================
+
+model TerminalRecuperacionCodigo {
+  id                 Int       @id @default(autoincrement())
+  terminalId         Int       @map("terminal_id")
+  codigoHash         String    @map("codigo_hash") @db.VarChar(128)
+  creadoPor          Int       @map("creado_por")
+  intentosFallidos   Int       @default(0) @map("intentos_fallidos")
+  maxIntentos        Int       @default(3) @map("max_intentos")
+  usadoEn            DateTime? @map("usado_en")
+  expiraEn           DateTime  @map("expira_en")
+  fechaCreacion      DateTime  @default(now()) @map("fecha_creacion")
+
+  terminal           Terminal  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
+  creador            Usuario   @relation("CodigoRecuperacionCreador", fields: [creadoPor], references: [id], onDelete: Restrict)
+
+  @@index([terminalId])
+  @@index([expiraEn])
+  @@map("terminales_recuperacion_codigos")
 }
 
 // =========================================================================
@@ -346,6 +373,7 @@ model Linea {
   tipoOperacion      TipoOperacion        @relation(fields: [tipoOperacionId], references: [id], onDelete: Restrict)
   departamentos      DepartamentoLinea[]
   inspecciones       InspeccionCabecera[]
+  gruposCodificacion GrupoCodificacionDefecto[]
 
   @@unique([tipoOperacionId, codigo], name: "unique_tipo_linea_codigo")
   @@index([tipoOperacionId])
@@ -388,6 +416,29 @@ model SecuenciaClaveDefecto {
   fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
 
   @@map("secuencias_clave_defecto")
+}
+
+/// Configuración de codificación de claves de defecto por combinación línea + departamento propietario.
+/// clave = prefijo * 100 + consecutivo (consecutivo 1..99). `siguienteConsecutivo` = 100 indica grupo agotado.
+model GrupoCodificacionDefecto {
+  id                   Int       @id @default(autoincrement())
+  lineaId              Int       @map("linea_id")
+  departamentoId       Int       @map("departamento_id")
+  prefijo              Int
+  siguienteConsecutivo Int       @default(1) @map("siguiente_consecutivo")
+  activo               Boolean   @default(true)
+  creadoPor            Int?      @map("creado_por")
+  fechaCreacion        DateTime  @default(now()) @map("fecha_creacion")
+  actualizadoPor       Int?      @map("actualizado_por")
+  fechaActualizacion   DateTime  @updatedAt @map("fecha_actualizacion")
+
+  linea                Linea        @relation(fields: [lineaId], references: [id], onDelete: Restrict)
+  departamento         Departamento @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+
+  @@unique([lineaId, departamentoId], name: "unique_grupo_linea_depto")
+  @@unique([prefijo], name: "unique_grupo_prefijo")
+  @@index([departamentoId])
+  @@map("grupos_codificacion_defecto")
 }
 
 model Defecto {
@@ -524,7 +575,9 @@ model InspeccionCabecera {
   departamentoAuditoriaId Int                 @map("departamento_auditoria_id")
   terminalId              Int?                @map("terminal_id")
   lineaId                 Int?                @map("linea_id")
+  lineaTexto              String?             @map("linea_texto") @db.VarChar(30)
   horma                   String?             @db.VarChar(60)
+  claveIdempotencia       String?             @map("clave_idempotencia") @db.VarChar(64)
   fechaInspeccion         DateTime            @default(now()) @map("fecha_inspeccion")
   estado                  EstadoInspeccion    @default(PENDIENTE)
   notas                   String?             @db.VarChar(500)
@@ -546,6 +599,7 @@ model InspeccionCabecera {
 
   detalles                InspeccionDetalle[]
 
+  @@unique([inspectorId, claveIdempotencia], name: "unique_inspector_clave_idempotencia")
   @@index([folio])
   @@index([loteId])
   @@index([inspectorId])
@@ -571,6 +625,7 @@ model InspeccionDetalle {
   fechaActualizacion  DateTime           @updatedAt @map("fecha_actualizacion")
   eliminadoPor        Int?               @map("eliminado_por")
   eliminadoEn         DateTime?          @map("eliminado_en")
+  eliminadoMotivo     String?            @map("eliminado_motivo") @db.VarChar(255)
 
   inspeccion          InspeccionCabecera @relation(fields: [inspeccionId], references: [id], onDelete: Cascade)
   defecto             Defecto            @relation(fields: [defectoId], references: [id], onDelete: Restrict)

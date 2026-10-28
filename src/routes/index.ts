@@ -15,6 +15,7 @@ const router = Router();
 router.use("/auth", authRouter);
 router.use("/users", usersRouter);
 router.use("/terminals", terminalsRouter);
+router.use("/terminales", terminalsRouter);
 router.use("/audit", auditRouter);
 router.use("/tipos-operacion", tiposOperacionRouter);
 router.use("/lineas", lineasRouter);

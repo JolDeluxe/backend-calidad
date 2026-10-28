@@ -2,32 +2,56 @@ import { prisma } from "../../../config/database";
 import { NotFoundError, ConflictError, ForbiddenError } from "../../../utils/errors";
 import { securityService } from "../../auth/services/security.service";
 import { auditService } from "../../audit/services/audit.service";
+import { generarUsernameUnico } from "../utils/username-generator";
 import type { CreateUserInput, UpdateUserInput } from "../users.schema";
 
 export class UsersService {
-  async getUsers() {
-    return prisma.usuario.findMany({
+  async getUsers(actorRol?: string) {
+    const usuarios = await prisma.usuario.findMany({
       select: {
         id: true,
         usuario: true,
         nombre: true,
         estado: true,
+        passwordHash: true,
         fechaCreacion: true,
         rol: {
           select: { id: true, codigo: true, nombre: true },
         },
-        departamentos: {
-          where: { estado: "ACTIVO" },
-          select: {
-            departamento: { select: { id: true, codigo: true, nombre: true } },
-          },
-        },
       },
       orderBy: { id: "asc" },
     });
+
+    const jerarquiaRoles: Record<string, number> = {
+      SUPER_ADMIN: 1,
+      ADMIN: 2,
+      COORD: 3,
+      INSPECTOR: 4,
+      VISUALIZADOR: 5,
+    };
+
+    // Desencriptar contraseñas para administradores (SUPER_ADMIN / ADMIN)
+    const procesados = usuarios.map((u) => {
+      let passwordClara = "";
+      if (actorRol === "SUPER_ADMIN" || actorRol === "ADMIN") {
+        passwordClara = securityService.decryptPassword(u.passwordHash) || "••••••";
+      }
+      const { passwordHash: _, ...resto } = u;
+      return {
+        ...resto,
+        password: passwordClara,
+      };
+    });
+
+    return procesados.sort((a, b) => {
+      const ordenA = jerarquiaRoles[a.rol.codigo] || 99;
+      const ordenB = jerarquiaRoles[b.rol.codigo] || 99;
+      if (ordenA !== ordenB) return ordenA - ordenB;
+      return a.nombre.localeCompare(b.nombre);
+    });
   }
 
-  async getUserById(id: number) {
+  async getUserById(id: number, actorRol?: string) {
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       select: {
@@ -35,15 +59,10 @@ export class UsersService {
         usuario: true,
         nombre: true,
         estado: true,
+        passwordHash: true,
         fechaCreacion: true,
         rol: {
           select: { id: true, codigo: true, nombre: true },
-        },
-        departamentos: {
-          where: { estado: "ACTIVO" },
-          select: {
-            departamento: { select: { id: true, codigo: true, nombre: true } },
-          },
         },
       },
     });
@@ -52,26 +71,52 @@ export class UsersService {
       throw new NotFoundError("Usuario no encontrado");
     }
 
-    return usuario;
-  }
-
-  async createUser(input: CreateUserInput, actorId?: number) {
-    const existente = await prisma.usuario.findUnique({
-      where: { usuario: input.usuario },
-    });
-
-    if (existente) {
-      throw new ConflictError("El nombre de usuario ya está registrado");
+    let passwordClara = "";
+    if (actorRol === "SUPER_ADMIN" || actorRol === "ADMIN") {
+      passwordClara = securityService.decryptPassword(usuario.passwordHash) || "••••••";
     }
 
-    const passwordHash = securityService.hashPassword(input.password);
+    const { passwordHash: _, ...resto } = usuario;
+    return {
+      ...resto,
+      password: passwordClara,
+    };
+  }
+
+  async suggestUsername(nombre: string, excludeId?: number): Promise<{ username: string }> {
+    const username = await generarUsernameUnico(nombre, excludeId);
+    return { username };
+  }
+
+  async createUser(input: CreateUserInput, actorId?: number, actorRol?: string) {
+    // Regla de jerarquía: Solo un SUPER_ADMIN puede crear a otro SUPER_ADMIN
+    const rolDeseado = await prisma.rol.findUnique({
+      where: { id: input.rolId },
+    });
+
+    if (!rolDeseado || rolDeseado.estado !== "ACTIVO") {
+      throw new NotFoundError("El rol seleccionado no es válido o está inactivo");
+    }
+
+    if (rolDeseado.codigo === "SUPER_ADMIN" && actorRol !== "SUPER_ADMIN") {
+      throw new ForbiddenError("Solo un Super Administrador puede crear o asignar usuarios con rol Super Administrador");
+    }
+
+    if (rolDeseado.codigo === "VISUALIZADOR" && actorRol !== "SUPER_ADMIN") {
+      throw new ForbiddenError("Solo un Super Administrador puede registrar o asignar usuarios con rol Visualizador");
+    }
+
+    // Generar username único a partir del nombre completo
+    const usernameGenerado = await generarUsernameUnico(input.nombre);
+
+    const passwordHash = securityService.encryptPassword(input.password);
 
     // Transacción atómica: Creación de usuario y registro de auditoría encadenada
     return await prisma.$transaction(async (tx) => {
       const nuevoUsuario = await tx.usuario.create({
         data: {
-          usuario: input.usuario,
-          nombre: input.nombre,
+          usuario: usernameGenerado,
+          nombre: input.nombre.trim(),
           passwordHash,
           rolId: input.rolId,
           estado: "ACTIVO",
@@ -110,11 +155,14 @@ export class UsersService {
         tx
       );
 
-      return nuevoUsuario;
+      return {
+        ...nuevoUsuario,
+        password: input.password,
+      };
     });
   }
 
-  async updateUser(id: number, input: UpdateUserInput, actorId?: number) {
+  async updateUser(id: number, input: UpdateUserInput, actorId?: number, actorRol?: string) {
     const usuarioExistente = await prisma.usuario.findUnique({
       where: { id },
       include: { rol: true },
@@ -122,6 +170,22 @@ export class UsersService {
 
     if (!usuarioExistente) {
       throw new NotFoundError("Usuario no encontrado");
+    }
+
+    // Regla de jerarquía: Solo un SUPER_ADMIN puede degradar/modificar a un SUPER_ADMIN
+    if (usuarioExistente.rol.codigo === "SUPER_ADMIN" && actorRol !== "SUPER_ADMIN") {
+      throw new ForbiddenError("Solo un Super Administrador puede modificar a un usuario con rol Super Administrador");
+    }
+
+    // Si se intenta asignar el rol SUPER_ADMIN o VISUALIZADOR, quien ejecuta debe ser SUPER_ADMIN
+    if (input.rolId && input.rolId !== usuarioExistente.rolId) {
+      const nuevoRol = await prisma.rol.findUnique({ where: { id: input.rolId } });
+      if (nuevoRol?.codigo === "SUPER_ADMIN" && actorRol !== "SUPER_ADMIN") {
+        throw new ForbiddenError("Solo un Super Administrador puede ascender usuarios a Super Administrador");
+      }
+      if (nuevoRol?.codigo === "VISUALIZADOR" && actorRol !== "SUPER_ADMIN") {
+        throw new ForbiddenError("Solo un Super Administrador puede asignar el rol Visualizador");
+      }
     }
 
     // Regla de seguridad: Protección del último SUPER_ADMIN activo
@@ -143,12 +207,26 @@ export class UsersService {
       }
     }
 
-    // Transacción atómica: Actualización, revocación de sesiones (si inactivo) y registro de auditoría encadenada
+    // Si se modifica el nombre, sincronizar automáticamente el username sin romper unicidad
+    let nuevoUsername = usuarioExistente.usuario;
+    if (input.nombre && input.nombre.trim() !== usuarioExistente.nombre) {
+      nuevoUsername = await generarUsernameUnico(input.nombre, id);
+    }
+
+    // Cifrar nueva contraseña si fue provista
+    const nuevoPasswordHash = input.password
+      ? securityService.encryptPassword(input.password)
+      : undefined;
+
+    // Transacción atómica: Actualización y registro de auditoría encadenada
+    // NOTA: Si el usuario NO fue desactivado, sus sesiones activas SE PRESERVAN INTACTAS
     return await prisma.$transaction(async (tx) => {
       const actualizado = await tx.usuario.update({
         where: { id },
         data: {
-          ...(input.nombre && { nombre: input.nombre }),
+          ...(input.nombre && { nombre: input.nombre.trim() }),
+          usuario: nuevoUsername,
+          ...(nuevoPasswordHash && { passwordHash: nuevoPasswordHash }),
           ...(input.rolId && { rolId: input.rolId }),
           ...(input.estado && { estado: input.estado }),
         },
@@ -157,6 +235,7 @@ export class UsersService {
           usuario: true,
           nombre: true,
           estado: true,
+          passwordHash: true,
           rol: {
             select: { id: true, codigo: true, nombre: true },
           },
@@ -181,11 +260,13 @@ export class UsersService {
           entidadId: String(id),
           descripcion: `Usuario '${usuarioExistente.usuario}' modificado (${accion})`,
           valoresAnteriores: {
+            usuario: usuarioExistente.usuario,
             nombre: usuarioExistente.nombre,
             rolId: usuarioExistente.rolId,
             estado: usuarioExistente.estado,
           },
           valoresPosteriores: {
+            usuario: actualizado.usuario,
             nombre: actualizado.nombre,
             rolId: actualizado.rol.id,
             estado: actualizado.estado,
@@ -197,19 +278,48 @@ export class UsersService {
         tx
       );
 
-      return actualizado;
+      let passwordClara = "";
+      if (actorRol === "SUPER_ADMIN" || actorRol === "ADMIN") {
+        passwordClara = securityService.decryptPassword(actualizado.passwordHash) || "••••••";
+      }
+
+      const { passwordHash: _, ...resto } = actualizado;
+      return {
+        ...resto,
+        password: passwordClara,
+      };
     });
   }
 
-  async deleteUser(id: number, actorId?: number) {
-    return this.updateUser(id, { estado: "INACTIVO" }, actorId);
+  async deleteUser(id: number, actorId?: number, actorRol?: string) {
+    return this.updateUser(id, { estado: "INACTIVO" }, actorId, actorRol);
   }
 
-  async getRoles() {
-    return prisma.rol.findMany({
-      where: { estado: "ACTIVO" },
+  async getRoles(actorRol?: string) {
+    // Si quien consulta no es SUPER_ADMIN, no ofrecer ni SUPER_ADMIN ni VISUALIZADOR
+    const excluidos: string[] = ["USUARIO"];
+    if (actorRol !== "SUPER_ADMIN") {
+      excluidos.push("SUPER_ADMIN", "VISUALIZADOR");
+    }
+
+    const roles = await prisma.rol.findMany({
+      where: {
+        estado: "ACTIVO",
+        codigo: { notIn: excluidos },
+      },
       select: { id: true, codigo: true, nombre: true, esSistema: true },
+      orderBy: { id: "asc" },
     });
+
+    const ordenRoles: Record<string, number> = {
+      SUPER_ADMIN: 1,
+      ADMIN: 2,
+      COORD: 3,
+      INSPECTOR: 4,
+      VISUALIZADOR: 5,
+    };
+
+    return roles.sort((a, b) => (ordenRoles[a.codigo] || 99) - (ordenRoles[b.codigo] || 99));
   }
 }
 

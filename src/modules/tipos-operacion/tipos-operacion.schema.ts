@@ -11,10 +11,10 @@ export const lineaIdParamSchema = z.object({
 export const createTipoOperacionSchema = z.object({
   codigo: z
     .string()
-    .min(1, "El código es obligatorio")
     .max(30, "El código no debe superar 30 caracteres")
     .trim()
-    .transform((val) => val.toUpperCase()),
+    .transform((val) => val.toUpperCase())
+    .optional(),
   nombre: z
     .string()
     .min(1, "El nombre es obligatorio")
@@ -42,10 +42,10 @@ export const createLineaSchema = z.object({
   tipoOperacionId: z.number().int().positive("El tipo de operación es obligatorio"),
   codigo: z
     .string()
-    .min(1, "El código es obligatorio")
     .max(30, "El código no debe superar 30 caracteres")
     .trim()
-    .transform((val) => val.toUpperCase()),
+    .transform((val) => val.toUpperCase())
+    .optional(),
   nombre: z
     .string()
     .min(1, "El nombre es obligatorio")

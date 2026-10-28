@@ -2,13 +2,24 @@ import { Router } from "express";
 import { usersController } from "./controllers/users.controller";
 import { authenticate, requireRole } from "../../middlewares/auth";
 import { validate } from "../../middlewares/validate";
-import { createUserSchema, updateUserSchema, userIdParamSchema } from "./users.schema";
+import {
+  createUserSchema,
+  updateUserSchema,
+  userIdParamSchema,
+  suggestUsernameQuerySchema,
+} from "./users.schema";
 
 const router = Router();
 
 router.use(authenticate);
 
 router.get("/roles", (req, res, next) => usersController.getRoles(req, res, next));
+
+router.get(
+  "/suggest-username",
+  validate({ query: suggestUsernameQuerySchema }),
+  (req, res, next) => usersController.suggestUsername(req, res, next),
+);
 
 router.get("/", (req, res, next) => usersController.getUsers(req, res, next));
 

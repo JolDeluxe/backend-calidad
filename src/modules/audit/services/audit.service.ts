@@ -74,6 +74,10 @@ export function sanitizarValores(obj: unknown): unknown {
   if (obj instanceof Date) {
     return obj.toISOString();
   }
+  // Soporte para Prisma.Decimal u objetos con toNumber / toString o constructor especial
+  if (typeof obj === "object" && obj !== null && "d" in obj && "s" in obj && "e" in obj) {
+    return Number((obj as any).toString());
+  }
   if (typeof obj !== "object") {
     // Si es un string largo que parece token o connection string
     if (typeof obj === "string") {

@@ -112,15 +112,31 @@ export class DepartamentosService {
   }
 
   async createDepartamento(
-    data: { codigo: string; nombre: string; categoriaDepartamentoId?: number | null; lineasIds?: number[] },
+    data: { codigo?: string; nombre: string; categoriaDepartamentoId?: number | null; numeroLineas?: number; lineasIds?: number[] },
     usuarioId?: number
   ) {
+    let codigo = data.codigo?.trim().toUpperCase();
+    if (!codigo) {
+      const slug = data.nombre
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .toUpperCase()
+        .slice(0, 20);
+      codigo = slug;
+      let counter = 1;
+      while (await prisma.departamento.findUnique({ where: { codigo } })) {
+        codigo = `${slug.slice(0, 16)}_${counter}`;
+        counter++;
+      }
+    }
+
     const existente = await prisma.departamento.findUnique({
-      where: { codigo: data.codigo },
+      where: { codigo },
     });
 
     if (existente && !existente.eliminadoEn) {
-      throw new ConflictError(`El código de departamento '${data.codigo}' ya existe`);
+      throw new ConflictError(`El código de departamento '${codigo}' ya existe`);
     }
 
     if (data.categoriaDepartamentoId) {
@@ -140,6 +156,7 @@ export class DepartamentosService {
           data: {
             nombre: data.nombre,
             categoriaDepartamentoId: data.categoriaDepartamentoId ?? null,
+            numeroLineas: data.numeroLineas ?? 1,
             estado: "ACTIVO",
             creadoPor: usuarioId,
             actualizadoPor: usuarioId,
@@ -153,9 +170,10 @@ export class DepartamentosService {
       } else {
         depto = await tx.departamento.create({
           data: {
-            codigo: data.codigo,
+            codigo,
             nombre: data.nombre,
             categoriaDepartamentoId: data.categoriaDepartamentoId ?? null,
+            numeroLineas: data.numeroLineas ?? 1,
             creadoPor: usuarioId,
           },
           include: {
@@ -205,7 +223,7 @@ export class DepartamentosService {
 
   async updateDepartamento(
     id: number,
-    data: { nombre?: string; codigo?: string; categoriaDepartamentoId?: number | null; lineasIds?: number[] },
+    data: { nombre?: string; codigo?: string; categoriaDepartamentoId?: number | null; numeroLineas?: number; lineasIds?: number[] },
     usuarioId?: number
   ) {
     const actual = await this.getDepartamentoById(id);
@@ -233,6 +251,7 @@ export class DepartamentosService {
           nombre: data.nombre,
           codigo: data.codigo,
           categoriaDepartamentoId: data.categoriaDepartamentoId !== undefined ? data.categoriaDepartamentoId : undefined,
+          numeroLineas: data.numeroLineas !== undefined ? data.numeroLineas : undefined,
           actualizadoPor: usuarioId,
         },
         include: {
@@ -322,21 +341,6 @@ export class DepartamentosService {
 
   async deleteDepartamento(id: number, usuarioId?: number) {
     const actual = await this.getDepartamentoById(id);
-
-    // Validación de referencias históricas e integridad
-    const terminalesActivas = await prisma.terminal.count({
-      where: { departamentoId: id, estado: "ACTIVO" },
-    });
-    if (terminalesActivas > 0) {
-      throw new ConflictError("No se puede eliminar el departamento porque tiene terminales activas vinculadas");
-    }
-
-    const usuariosAsignados = await prisma.usuarioDepartamento.count({
-      where: { departamentoId: id, estado: "ACTIVO" },
-    });
-    if (usuariosAsignados > 0) {
-      throw new ConflictError("No se puede eliminar el departamento porque tiene usuarios asignados activamente");
-    }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const eliminado = await tx.departamento.update({

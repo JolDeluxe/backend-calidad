@@ -5,12 +5,13 @@ import { sendSuccess, sendCreated } from "../../../utils/response";
 export class DepartamentosController {
   async getDepartamentos(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { lineaId, tipoOperacionId, categoriaDepartamentoId, estado, busqueda, incluirEliminados } = req.query as any;
+      const { lineaId, tipoOperacionId, categoriaDepartamentoId, estado, activo, busqueda, incluirEliminados } = req.query as any;
+      const estadoFiltro = activo !== undefined ? (activo ? "ACTIVO" : "INACTIVO") : estado;
       const departamentos = await departamentosService.getDepartamentos({
         lineaId,
         tipoOperacionId,
         categoriaDepartamentoId,
-        estado,
+        estado: estadoFiltro,
         busqueda,
         incluirEliminados,
       });

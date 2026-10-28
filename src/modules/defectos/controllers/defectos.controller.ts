@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { defectosService } from "../services/defectos.service";
+import { codificacionDefectosService } from "../services/codificacion-defectos.service";
 import { sendSuccess, sendCreated } from "../../../utils/response";
 import { UnauthorizedError } from "../../../utils/errors";
 
@@ -53,6 +54,37 @@ export class DefectosController {
     }
   }
 
+  async getGruposCodificacion(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { lineaId } = req.query as { lineaId?: number | string };
+      const grupos = await codificacionDefectosService.getGrupos(lineaId ? Number(lineaId) : undefined);
+      sendSuccess(res, grupos, "Grupos de codificación obtenidos exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async previsualizarLote(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const resultado = await codificacionDefectosService.previsualizarLote(req.body);
+      sendSuccess(res, resultado, "Previsualización de claves generada (sin reservar claves)");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async crearLote(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError("Usuario no autenticado");
+      }
+      const resultado = await codificacionDefectosService.crearLote(req.body, req.user.usuarioId);
+      sendCreated(res, resultado, "Lote de defectos creado exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getDefectoById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const defecto = await defectosService.getDefectoById(Number(req.params.id));
@@ -95,11 +127,10 @@ export class DefectosController {
       if (!req.user) {
         throw new UnauthorizedError("Usuario no autenticado");
       }
-      const { nuevaClave, motivo } = req.body;
+      const { nuevaClave } = req.body;
       const actualizado = await defectosService.updateClaveDefecto(
         Number(req.params.id),
         Number(nuevaClave),
-        motivo,
         req.user.usuarioId
       );
       sendSuccess(res, actualizado, "Clave de defecto actualizada y secuencia sincronizada exitosamente");

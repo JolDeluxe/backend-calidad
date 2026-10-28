@@ -12,6 +12,9 @@ import {
   syncDefectoDepartamentosSchema,
   toggleDefectoDepartamentoSchema,
   syncDefectoEtapasSchema,
+  getGruposCodificacionQuerySchema,
+  previewLoteDefectosSchema,
+  crearLoteDefectosSchema,
 } from "./defectos.schema";
 
 const router = Router();
@@ -21,6 +24,26 @@ router.use(authenticate);
 router.get(
   "/conteos-lineas",
   (req, res, next) => defectosController.getConteoLineas(req, res, next)
+);
+
+router.get(
+  "/grupos-codificacion",
+  validate({ query: getGruposCodificacionQuerySchema }),
+  (req, res, next) => defectosController.getGruposCodificacion(req, res, next)
+);
+
+router.post(
+  "/batch/preview",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ body: previewLoteDefectosSchema }),
+  (req, res, next) => defectosController.previsualizarLote(req, res, next)
+);
+
+router.post(
+  "/batch",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ body: crearLoteDefectosSchema }),
+  (req, res, next) => defectosController.crearLote(req, res, next)
 );
 
 router.get(

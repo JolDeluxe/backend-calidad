@@ -12,11 +12,13 @@ export interface ItemDefectoInput {
 export interface CreateInspeccionParams {
   lote: string;
   lineaId?: number | null;
-  departamentoAuditoriaId?: number;
+  lineaTexto?: string | null;
   horma?: string | null;
   notas?: string | null;
   detalles: ItemDefectoInput[];
   usuarioId: number;
+  /** Clave opcional de idempotencia (por inspector) para evitar duplicados por doble envío o reintentos. */
+  claveIdempotencia?: string | null;
   terminal?: {
     id: number;
     nombre: string;
@@ -35,15 +37,238 @@ export interface GetInspeccionesParams {
   busqueda?: string;
   lote?: string;
   defectoClave?: number;
+  departamentoId?: number;
   departamentoAuditoriaId?: number;
+  departamentoResponsableId?: number;
+  clasificacion?: "CRITICO" | "MAYOR" | "MENOR";
+  lineaId?: number;
+  lineaTexto?: string;
   inspectorId?: number;
   mes?: number;
   anio?: number;
+  /** Rango de fechas de inspección (inclusive). */
+  fechaDesde?: Date;
+  fechaHasta?: Date;
+  terminalId?: number;
+  soloEliminados?: boolean;
   page: number;
   limit: number;
 }
 
+export interface EliminacionLogicaParams {
+  usuarioId: number;
+  motivo?: string;
+  reqInfo?: { ip?: string; userAgent?: string; method?: string; url?: string };
+}
+
 export class InspeccionesService {
+  async cancelarDetalleInspeccion(detalleId: number, params: EliminacionLogicaParams) {
+    const detalle = await prisma.inspeccionDetalle.findUnique({
+      where: { id: detalleId },
+      include: {
+        inspeccion: { include: { departamentoAuditoria: true, lote: true } },
+        defecto: true,
+      },
+    });
+
+    if (!detalle || detalle.eliminadoEn) {
+      throw new NotFoundError("El registro de defecto no existe o ya fue eliminado");
+    }
+
+    // Regla de negocio: Solo se pueden eliminar defectos de los últimos 30 días
+    const fechaInspeccion = new Date(detalle.inspeccion.fechaInspeccion);
+    const limite30Dias = new Date();
+    limite30Dias.setDate(limite30Dias.getDate() - 30);
+    // Establecer al inicio del día límite (00:00:00) para permitir todo el día 30
+    limite30Dias.setHours(0, 0, 0, 0);
+
+    if (fechaInspeccion < limite30Dias) {
+      throw new BadRequestError(
+        "No es posible eliminar este registro: solo se permite eliminar defectos registrados dentro de los últimos 30 días"
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // Actualización condicionada: evita doble eliminación concurrente
+      const afectados = await tx.inspeccionDetalle.updateMany({
+        where: { id: detalleId, eliminadoEn: null },
+        data: {
+          eliminadoEn: new Date(),
+          eliminadoPor: params.usuarioId,
+          eliminadoMotivo: params.motivo || "Eliminación de defecto en estación",
+        },
+      });
+      if (afectados.count !== 1) {
+        throw new NotFoundError("El registro de defecto no existe o ya fue eliminado");
+      }
+      const cancelado = await tx.inspeccionDetalle.findUniqueOrThrow({ where: { id: detalleId } });
+
+      // Limpiar estructura para serialización JSON segura en auditoría
+      const { inspeccion, defecto, ...detalleLimpio } = detalle;
+
+      await auditService.registrarEvento({
+        accion: "DEFECTO_INSPECCION_ELIMINADO",
+        modulo: "INSPECCIONES",
+        entidad: "InspeccionDetalle",
+        entidadId: detalleId.toString(),
+        descripcion: `Eliminación de defecto #${defecto.clave} en lote ${inspeccion.lote.lote} por usuario ID ${params.usuarioId}`,
+        motivo: params.motivo || "Eliminación de defecto en estación",
+        valoresAnteriores: {
+          ...detalleLimpio,
+          defectoClave: defecto.clave,
+          defectoNombre: defecto.defecto,
+          lote: inspeccion.lote.lote,
+        } as any,
+        valoresPosteriores: cancelado as any,
+        contexto: {
+          usuarioId: params.usuarioId,
+          departamentoId: inspeccion.departamentoAuditoriaId,
+          terminalId: inspeccion.terminalId ?? undefined,
+          ipOrigen: params.reqInfo?.ip,
+          agenteUsuario: params.reqInfo?.userAgent,
+          metodoHttp: params.reqInfo?.method,
+          rutaHttp: params.reqInfo?.url,
+        } as any,
+      }, tx);
+
+      return cancelado;
+    });
+  }
+
+  /**
+   * Recupera (revierte el borrado lógico de) un defecto registrado. No hay borrado físico.
+   */
+  async recuperarDetalleInspeccion(detalleId: number, params: EliminacionLogicaParams) {
+    const detalle = await prisma.inspeccionDetalle.findUnique({
+      where: { id: detalleId },
+      include: {
+        inspeccion: { include: { lote: true } },
+        defecto: true,
+      },
+    });
+
+    if (!detalle || !detalle.eliminadoEn) {
+      throw new NotFoundError("El registro de defecto no existe o no está eliminado");
+    }
+    if (detalle.inspeccion.eliminadoEn) {
+      throw new BadRequestError("No es posible recuperar el defecto: la inspección asociada está eliminada");
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const afectados = await tx.inspeccionDetalle.updateMany({
+        where: { id: detalleId, eliminadoEn: { not: null } },
+        data: {
+          eliminadoEn: null,
+          eliminadoPor: null,
+          eliminadoMotivo: null,
+          actualizadoPor: params.usuarioId,
+        },
+      });
+      if (afectados.count !== 1) {
+        throw new NotFoundError("El registro de defecto no existe o no está eliminado");
+      }
+      const recuperado = await tx.inspeccionDetalle.findUniqueOrThrow({ where: { id: detalleId } });
+
+      await auditService.registrarEvento({
+        accion: "DEFECTO_INSPECCION_RECUPERADO",
+        modulo: "INSPECCIONES",
+        entidad: "InspeccionDetalle",
+        entidadId: detalleId.toString(),
+        descripcion: `Recuperación de defecto #${detalle.defecto.clave} en lote ${detalle.inspeccion.lote.lote} por usuario ID ${params.usuarioId}`,
+        motivo: params.motivo || "Recuperación de defecto en estación",
+        valoresAnteriores: {
+          eliminadoEn: detalle.eliminadoEn,
+          eliminadoPor: detalle.eliminadoPor,
+          eliminadoMotivo: detalle.eliminadoMotivo,
+        },
+        valoresPosteriores: { eliminadoEn: null, eliminadoPor: null, eliminadoMotivo: null },
+        contexto: {
+          usuarioId: params.usuarioId,
+          departamentoId: detalle.inspeccion.departamentoAuditoriaId,
+          terminalId: detalle.inspeccion.terminalId ?? undefined,
+          ipOrigen: params.reqInfo?.ip,
+          agenteUsuario: params.reqInfo?.userAgent,
+          metodoHttp: params.reqInfo?.method,
+          rutaHttp: params.reqInfo?.url,
+        } as any,
+      }, tx);
+
+      return recuperado;
+    });
+  }
+
+  /**
+   * Detalle completo de una inspección: cabecera, lote, terminal, usuario y defectos.
+   * - `soloPropiaDeUsuarioId`: si se indica, solo devuelve la inspección si pertenece a ese inspector.
+   * - `incluirEliminados`: incluye defectos con borrado lógico (requiere permiso en la capa de ruta).
+   * - `incluirTrazabilidad`: incluye eventos de auditoría de la inspección y sus defectos.
+   */
+  async getDetalleInspeccion(
+    id: number,
+    opts: { soloPropiaDeUsuarioId?: number; incluirEliminados: boolean; incluirTrazabilidad: boolean }
+  ) {
+    const inspeccion = await prisma.inspeccionCabecera.findFirst({
+      where: {
+        id,
+        eliminadoEn: null,
+        ...(opts.soloPropiaDeUsuarioId ? { inspectorId: opts.soloPropiaDeUsuarioId } : {}),
+      },
+      include: {
+        lote: true,
+        inspector: { select: { id: true, usuario: true, nombre: true } },
+        departamentoAuditoria: { select: { id: true, codigo: true, nombre: true } },
+        terminal: { select: { id: true, nombre: true } },
+        linea: { select: { id: true, codigo: true, nombre: true } },
+        detalles: {
+          where: opts.incluirEliminados ? {} : { eliminadoEn: null },
+          orderBy: { id: "asc" },
+          include: {
+            defecto: { select: { id: true, clave: true, defecto: true, clasificacion: true } },
+            departamentoResponsable: { select: { id: true, codigo: true, nombre: true } },
+          },
+        },
+      },
+    });
+
+    if (!inspeccion) {
+      throw new NotFoundError("La inspección no existe o no está disponible para su consulta");
+    }
+
+    let trazabilidad: unknown[] | undefined;
+    if (opts.incluirTrazabilidad) {
+      const detalleIds = inspeccion.detalles.map((d) => String(d.id));
+      const eventos = await prisma.registroAuditoria.findMany({
+        where: {
+          OR: [
+            { entidad: "inspeccion_cabecera", entidadId: String(inspeccion.id) },
+            ...(detalleIds.length > 0 ? [{ entidad: "InspeccionDetalle", entidadId: { in: detalleIds } }] : []),
+          ],
+        },
+        select: {
+          id: true,
+          fecha: true,
+          accion: true,
+          entidad: true,
+          entidadId: true,
+          detalles: true,
+          motivo: true,
+          usuario: { select: { id: true, usuario: true, nombre: true } },
+          terminal: { select: { id: true, nombre: true } },
+        },
+        orderBy: { id: "asc" },
+      });
+      trazabilidad = eventos;
+    }
+
+    return {
+      ...inspeccion,
+      // Las filas de estas tablas solo se crean desde POST /inspecciones (captura web).
+      // Los registros históricos TXT residen en inspecciones_historicas_origen, no en este modelo.
+      origen: "WEB" as const,
+      ...(trazabilidad ? { trazabilidad } : {}),
+    };
+  }
+
   /**
    * Genera un folio correlativo único para la inspección.
    */
@@ -76,19 +301,56 @@ export class InspeccionesService {
 
   /**
    * Registra una inspección de forma estrictamente atómica en MySQL ($transaction).
+   * Mantiene el contrato histórico: devuelve la inspección completa.
    */
   async createInspeccion(params: CreateInspeccionParams) {
+    const { inspeccion } = await this.registrarInspeccion(params);
+    return inspeccion;
+  }
+
+  private async buscarPorClaveIdempotencia(inspectorId: number, clave: string) {
+    return prisma.inspeccionCabecera.findUnique({
+      where: { unique_inspector_clave_idempotencia: { inspectorId, claveIdempotencia: clave } },
+      include: this.includeInspeccionCompleta,
+    });
+  }
+
+  private readonly includeInspeccionCompleta = {
+    lote: true,
+    inspector: { select: { id: true, usuario: true, nombre: true } },
+    departamentoAuditoria: { select: { id: true, codigo: true, nombre: true } },
+    terminal: { select: { id: true, nombre: true } },
+    linea: { select: { id: true, codigo: true, nombre: true } },
+    detalles: {
+      include: {
+        defecto: { select: { id: true, clave: true, defecto: true, clasificacion: true } },
+        departamentoResponsable: { select: { id: true, codigo: true, nombre: true } },
+      },
+    },
+  } as const;
+
+  /**
+   * Igual que createInspeccion, pero indica si la respuesta corresponde a un reintento idempotente.
+   */
+  async registrarInspeccion(params: CreateInspeccionParams) {
     const {
       lote: codigoLote,
       lineaId,
-      departamentoAuditoriaId: deptoParam,
+      lineaTexto,
       horma: hormaParam,
       notas,
       detalles,
       usuarioId,
       terminal,
       reqInfo,
+      claveIdempotencia,
     } = params;
+
+    // Idempotencia: si la misma clave ya produjo una inspección de este inspector, se devuelve esa misma (sin duplicar).
+    if (claveIdempotencia) {
+      const previa = await this.buscarPorClaveIdempotencia(usuarioId, claveIdempotencia);
+      if (previa) return { inspeccion: previa, repetida: true };
+    }
 
     const loteExistente = await prisma.produccionLote.findFirst({
       where: {
@@ -101,28 +363,36 @@ export class InspeccionesService {
       throw new NotFoundError(`El lote '${codigoLote}' no existe en el sistema de producción.`);
     }
 
-    let deptoAuditoriaId: number;
-    if (terminal) {
-      deptoAuditoriaId = terminal.departamentoId;
-    } else if (deptoParam) {
-      deptoAuditoriaId = deptoParam;
-    } else {
-      const deptoUsuario = await prisma.usuarioDepartamento.findFirst({
-        where: {
-          usuarioId,
-          estado: "ACTIVO",
-          departamento: { estado: "ACTIVO" },
-        },
-        select: { departamentoId: true },
-      });
-
-      if (!deptoUsuario) {
-        throw new BadRequestError(
-          "No se pudo determinar el departamento auditor. Vincule una terminal operativa o especifique el departamento autorizado."
-        );
-      }
-      deptoAuditoriaId = deptoUsuario.departamentoId;
+    if (loteExistente.estado !== "ACTIVO") {
+      throw new BadRequestError(`El lote '${codigoLote}' no está activo en el sistema de producción.`);
     }
+
+    // Un mismo defecto no puede repetirse en una captura (la interfaz acumula pares del mismo defecto)
+    const idsRepetidos = detalles
+      .map((d) => d.defectoId)
+      .filter((id, idx, arr) => arr.indexOf(id) !== idx);
+    if (idsRepetidos.length > 0) {
+      throw new BadRequestError(
+        `Defectos duplicados en la captura: IDs [${Array.from(new Set(idsRepetidos)).join(", ")}]. Acumule los pares en una sola línea.`
+      );
+    }
+
+    // Los pares defectuosos de un defecto no pueden exceder la cantidad del lote (misma regla que la interfaz)
+    const maxPares = Math.max(1, Math.floor(Number(loteExistente.cantidad)));
+    const excedido = detalles.find((d) => d.paresDefectuosos > maxPares);
+    if (excedido) {
+      throw new BadRequestError(
+        `Los pares defectuosos (${excedido.paresDefectuosos}) exceden la cantidad del lote (${maxPares}).`
+      );
+    }
+
+    // 1. El departamento auditor se obtiene EXCLUSIVAMENTE de la terminal física validada por el servidor
+    if (!terminal || !terminal.departamentoId) {
+      throw new BadRequestError(
+        "No es posible capturar inspecciones: se requiere una estación de trabajo física vinculada y activa."
+      );
+    }
+    const deptoAuditoriaId = terminal.departamentoId;
 
     if (lineaId) {
       const linea = await prisma.linea.findUnique({
@@ -227,7 +497,8 @@ export class InspeccionesService {
 
     const hormaEfectiva = hormaParam || loteExistente.horma || null;
 
-    return await prisma.$transaction(async (tx) => {
+    const ejecutarTransaccion = () =>
+      prisma.$transaction(async (tx) => {
       const folio = await this.generateNextFolio(tx);
 
       const cabecera = await tx.inspeccionCabecera.create({
@@ -238,7 +509,9 @@ export class InspeccionesService {
           departamentoAuditoriaId: deptoAuditoriaId,
           terminalId: terminal?.id || null,
           lineaId: lineaId || null,
+          lineaTexto: lineaTexto || (lineaId ? null : "L1"),
           horma: hormaEfectiva,
+          claveIdempotencia: claveIdempotencia || null,
           estado: "RECHAZADO",
           notas: notas || null,
           creadoPor: usuarioId,
@@ -318,7 +591,25 @@ export class InspeccionesService {
       );
 
       return inspeccionCompleta;
-    });
+      });
+
+    // Reintenta ante colisión del folio correlativo (capturas simultáneas) o carrera de idempotencia.
+    const MAX_INTENTOS = 5;
+    for (let intento = 1; ; intento++) {
+      try {
+        const inspeccion = await ejecutarTransaccion();
+        return { inspeccion, repetida: false };
+      } catch (error: any) {
+        if (error?.code !== "P2002") throw error;
+        if (claveIdempotencia) {
+          const previa = await this.buscarPorClaveIdempotencia(usuarioId, claveIdempotencia);
+          if (previa) return { inspeccion: previa, repetida: true };
+        }
+        if (intento >= MAX_INTENTOS) {
+          throw new BadRequestError("No fue posible asignar un folio único a la inspección. Intente nuevamente.");
+        }
+      }
+    }
   }
 
   /**
@@ -328,51 +619,93 @@ export class InspeccionesService {
    */
   async getFilasInspeccion(params: GetInspeccionesParams) {
     const where: Record<string, unknown> = {
-      eliminadoEn: null,
+      eliminadoEn: params.soloEliminados ? { not: null } : null,
       inspeccion: {
         eliminadoEn: null,
       },
     };
 
-    // 1. Filtro por departamento auditor
-    if (params.departamentoAuditoriaId) {
-      (where.inspeccion as any).departamentoAuditoriaId = params.departamentoAuditoriaId;
+    const andConditions: any[] = [];
+
+    // 1. Filtro por departamento auditor, responsable o unificado
+    if (params.departamentoId) {
+      andConditions.push({
+        OR: [
+          { inspeccion: { departamentoAuditoriaId: params.departamentoId } },
+          { defDeptoId: params.departamentoId },
+        ],
+      });
+    } else {
+      if (params.departamentoAuditoriaId) {
+        (where.inspeccion as any).departamentoAuditoriaId = params.departamentoAuditoriaId;
+      }
+
+      if (params.departamentoResponsableId) {
+        where.defDeptoId = params.departamentoResponsableId;
+      }
+    }
+
+    if (params.clasificacion) {
+      where.defecto = { ...(where.defecto as any || {}), clasificacion: params.clasificacion };
+    }
+
+    if (params.lineaId) {
+      (where.inspeccion as any).lineaId = params.lineaId;
+    }
+
+    if (params.lineaTexto) {
+      (where.inspeccion as any).lineaTexto = params.lineaTexto;
     }
 
     if (params.inspectorId) {
       (where.inspeccion as any).inspectorId = params.inspectorId;
     }
 
-    // 2. Filtro temporal según período
-    const periodo = params.periodo || "ultimos";
+    if (params.terminalId) {
+      (where.inspeccion as any).terminalId = params.terminalId;
+    }
 
-    if (periodo === "hoy") {
-      const hoyInicio = new Date();
-      hoyInicio.setHours(0, 0, 0, 0);
-      const hoyFin = new Date();
-      hoyFin.setHours(23, 59, 59, 999);
-
+    // Rango explícito de fechas: tiene precedencia sobre el período/mes/año
+    const rangoExplicito = Boolean(params.fechaDesde || params.fechaHasta);
+    if (rangoExplicito) {
       (where.inspeccion as any).fechaInspeccion = {
-        gte: hoyInicio,
-        lte: hoyFin,
+        ...(params.fechaDesde ? { gte: params.fechaDesde } : {}),
+        ...(params.fechaHasta ? { lte: params.fechaHasta } : {}),
       };
-    } else if (periodo === "todos" && (params.mes || params.anio)) {
-      const anioActual = params.anio || new Date().getFullYear();
-      let fechaInicio: Date;
-      let fechaFin: Date;
+    }
 
-      if (params.mes) {
-        fechaInicio = new Date(anioActual, params.mes - 1, 1, 0, 0, 0, 0);
-        fechaFin = new Date(anioActual, params.mes, 0, 23, 59, 59, 999);
-      } else {
-        fechaInicio = new Date(anioActual, 0, 1, 0, 0, 0, 0);
-        fechaFin = new Date(anioActual, 11, 31, 23, 59, 59, 999);
+    const periodo = rangoExplicito ? "todos" : params.periodo || "ultimos";
+
+    // 2. Filtro temporal según período (Si es soloEliminados, no aplicamos filtro temporal estricto a menos que se solicite)
+    if (!params.soloEliminados && !rangoExplicito) {
+      if (periodo === "hoy") {
+        const hoyInicio = new Date();
+        hoyInicio.setHours(0, 0, 0, 0);
+        const hoyFin = new Date();
+        hoyFin.setHours(23, 59, 59, 999);
+
+        (where.inspeccion as any).fechaInspeccion = {
+          gte: hoyInicio,
+          lte: hoyFin,
+        };
+      } else if (periodo === "todos" && (params.mes || params.anio)) {
+        const anioActual = params.anio || new Date().getFullYear();
+        let fechaInicio: Date;
+        let fechaFin: Date;
+
+        if (params.mes) {
+          fechaInicio = new Date(anioActual, params.mes - 1, 1, 0, 0, 0, 0);
+          fechaFin = new Date(anioActual, params.mes, 0, 23, 59, 59, 999);
+        } else {
+          fechaInicio = new Date(anioActual, 0, 1, 0, 0, 0, 0);
+          fechaFin = new Date(anioActual, 11, 31, 23, 59, 59, 999);
+        }
+
+        (where.inspeccion as any).fechaInspeccion = {
+          gte: fechaInicio,
+          lte: fechaFin,
+        };
       }
-
-      (where.inspeccion as any).fechaInspeccion = {
-        gte: fechaInicio,
-        lte: fechaFin,
-      };
     }
 
     // 3. Búsqueda por Lote o Clave de Defecto
@@ -407,7 +740,11 @@ export class InspeccionesService {
         });
       }
 
-      where.AND = [{ OR: orConditions }];
+      andConditions.push({ OR: orConditions });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     if (params.lote) {
@@ -417,12 +754,12 @@ export class InspeccionesService {
     }
 
     if (params.defectoClave) {
-      where.defecto = { clave: params.defectoClave };
+      where.defecto = { ...(where.defecto as any || {}), clave: params.defectoClave };
     }
 
-    // Límite según periodo: Si es 'ultimos', son 30 registros
-    const take = periodo === "ultimos" ? 30 : params.limit;
-    const skip = periodo === "ultimos" ? 0 : (params.page - 1) * take;
+    // Límite según periodo: Si es 'ultimos' (y no soloEliminados), son estrictamente los últimos 30 registros fijos
+    const take = (!params.soloEliminados && periodo === "ultimos") ? 30 : params.limit;
+    const skip = (!params.soloEliminados && periodo === "ultimos") ? 0 : (params.page - 1) * take;
 
     const [detalles, total] = await Promise.all([
       prisma.inspeccionDetalle.findMany({
@@ -443,6 +780,9 @@ export class InspeccionesService {
               linea: {
                 select: { id: true, codigo: true, nombre: true },
               },
+              terminal: {
+                select: { id: true, nombre: true },
+              },
             },
           },
           defecto: {
@@ -456,6 +796,27 @@ export class InspeccionesService {
       prisma.inspeccionDetalle.count({ where }),
     ]);
 
+    // Obtener nombres de usuarios que eliminaron si existen registros eliminados
+    const eliminadoresIds = Array.from(
+      new Set(
+        detalles
+          .map((d) => d.eliminadoPor)
+          .filter((id): id is number => typeof id === "number" && id > 0)
+      )
+    );
+
+    const usuariosEliminadores =
+      eliminadoresIds.length > 0
+        ? await prisma.usuario.findMany({
+            where: { id: { in: eliminadoresIds } },
+            select: { id: true, usuario: true, nombre: true },
+          })
+        : [];
+
+    const mapEliminadores = new Map(
+      usuariosEliminadores.map((u) => [u.id, u.nombre || u.usuario])
+    );
+
     // Mapear al formato idéntico del sistema de inspectores
     const items = detalles.map((d) => ({
       id: d.id,
@@ -466,7 +827,7 @@ export class InspeccionesService {
       fecha: d.inspeccion.fechaInspeccion,
       lista: d.inspeccion.lote.lista,
       lote: d.inspeccion.lote.lote,
-      linea: d.inspeccion.linea?.nombre || "L1",
+      linea: d.inspeccion.lineaTexto || d.inspeccion.linea?.nombre || "L1",
       modelo: d.inspeccion.lote.modelo,
       descripcion: d.inspeccion.lote.descripcion,
       horma: d.inspeccion.horma || d.inspeccion.lote.horma || "N/A",
@@ -480,16 +841,54 @@ export class InspeccionesService {
       paresDefectuosos: d.paresDefectuosos,
       notas: d.notas,
       usuario: d.inspeccion.inspector.nombre || d.inspeccion.inspector.usuario,
+      terminal: d.inspeccion.terminal?.nombre ?? null,
+      terminalId: d.inspeccion.terminal?.id ?? null,
+      eliminadoEn: d.eliminadoEn,
+      eliminadoPor: d.eliminadoPor,
+      eliminadoPorNombre: d.eliminadoPor ? mapEliminadores.get(d.eliminadoPor) || `Usuario #${d.eliminadoPor}` : null,
+      eliminadoMotivo: d.eliminadoMotivo,
     }));
+
+    const effectiveTotal = periodo === "ultimos" ? Math.min(30, total) : total;
 
     return {
       items,
-      total,
+      total: effectiveTotal,
       periodo,
       page: periodo === "ultimos" ? 1 : params.page,
       limit: take,
       totalPages: periodo === "ultimos" ? 1 : Math.ceil(total / take) || 1,
     };
+  }
+
+  /**
+   * Obtiene la lista de inspectores (usuarios que han realizado inspecciones o tienen rol de inspector/administrador)
+   */
+  async getInspectores() {
+    const usuarios = await prisma.usuario.findMany({
+      where: {
+        estado: "ACTIVO",
+        OR: [
+          { rol: { codigo: { in: ["INSPECTOR", "SUPER_ADMIN", "ADMIN", "COORD"] } } },
+          { inspeccionesInspector: { some: {} } },
+        ],
+      },
+      select: {
+        id: true,
+        nombre: true,
+        usuario: true,
+        rol: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+          },
+        },
+      },
+      orderBy: { nombre: "asc" },
+    });
+
+    return usuarios;
   }
 }
 

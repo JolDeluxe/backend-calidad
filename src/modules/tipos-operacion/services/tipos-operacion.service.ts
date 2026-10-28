@@ -56,18 +56,38 @@ export class TiposOperacionService {
     return tipo;
   }
 
-  async createTipoOperacion(data: { codigo: string; nombre: string; descripcion?: string | null }, usuarioId?: number) {
-    const existe = await prisma.tipoOperacion.findUnique({ where: { codigo: data.codigo } });
-    if (existe) {
-      throw new ConflictError(`El tipo de operación con código '${data.codigo}' ya existe`);
+  async createTipoOperacion(data: { codigo?: string; nombre: string; descripcion?: string | null }, usuarioId?: number) {
+    let codigo = data.codigo?.trim().toUpperCase();
+
+    if (!codigo) {
+      // Generación automática a partir del nombre (sin acentos, mayúsculas, solo alfanuméricos)
+      const base = data.nombre
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .toUpperCase()
+        .slice(0, 25);
+      
+      let candidate = base || "TIPO";
+      let counter = 1;
+      while (await prisma.tipoOperacion.findUnique({ where: { codigo: candidate } })) {
+        candidate = `${base}_${counter}`.slice(0, 30);
+        counter++;
+      }
+      codigo = candidate;
+    } else {
+      const existe = await prisma.tipoOperacion.findUnique({ where: { codigo } });
+      if (existe) {
+        throw new ConflictError(`El tipo de operación con código '${codigo}' ya existe`);
+      }
     }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const nuevo = await tx.tipoOperacion.create({
         data: {
-          codigo: data.codigo,
-          nombre: data.nombre,
-          descripcion: data.descripcion,
+          codigo,
+          nombre: data.nombre.trim(),
+          descripcion: data.descripcion?.trim() || null,
           creadoPor: usuarioId,
         },
       });
@@ -195,7 +215,7 @@ export class TiposOperacionService {
     return linea;
   }
 
-  async createLinea(data: { tipoOperacionId: number; codigo: string; nombre: string; descripcion?: string | null }, usuarioId?: number) {
+  async createLinea(data: { tipoOperacionId: number; codigo?: string; nombre: string; descripcion?: string | null }, usuarioId?: number) {
     const tipo = await prisma.tipoOperacion.findFirst({
       where: { id: data.tipoOperacionId, eliminadoEn: null },
     });
@@ -203,26 +223,54 @@ export class TiposOperacionService {
       throw new NotFoundError("El tipo de operación especificado no existe");
     }
 
-    const existe = await prisma.linea.findUnique({
-      where: {
-        unique_tipo_linea_codigo: {
-          tipoOperacionId: data.tipoOperacionId,
-          codigo: data.codigo,
-        },
-      },
-    });
+    let codigo = data.codigo?.trim().toUpperCase();
 
-    if (existe && !existe.eliminadoEn) {
-      throw new ConflictError(`La línea con código '${data.codigo}' ya existe en este tipo de operación`);
+    if (!codigo) {
+      const base = data.nombre
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .toUpperCase()
+        .slice(0, 25);
+
+      let candidate = base || "LINEA";
+      let counter = 1;
+      while (
+        await prisma.linea.findUnique({
+          where: {
+            unique_tipo_linea_codigo: {
+              tipoOperacionId: data.tipoOperacionId,
+              codigo: candidate,
+            },
+          },
+        })
+      ) {
+        candidate = `${base}_${counter}`.slice(0, 30);
+        counter++;
+      }
+      codigo = candidate;
+    } else {
+      const existe = await prisma.linea.findUnique({
+        where: {
+          unique_tipo_linea_codigo: {
+            tipoOperacionId: data.tipoOperacionId,
+            codigo,
+          },
+        },
+      });
+
+      if (existe && !existe.eliminadoEn) {
+        throw new ConflictError(`La línea con código '${codigo}' ya existe en este tipo de operación`);
+      }
     }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const nueva = await tx.linea.create({
         data: {
           tipoOperacionId: data.tipoOperacionId,
-          codigo: data.codigo,
-          nombre: data.nombre,
-          descripcion: data.descripcion,
+          codigo,
+          nombre: data.nombre.trim(),
+          descripcion: data.descripcion?.trim() || null,
           creadoPor: usuarioId,
         },
       });

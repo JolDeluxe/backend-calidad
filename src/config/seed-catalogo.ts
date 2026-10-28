@@ -19,13 +19,13 @@ export async function seedCatalogoBase() {
     },
     {
       codigo: "COORD",
-      nombre: "Coordinador de Calidad",
+      nombre: "Coordinador",
       descripcion: "Supervisión departamental y autorización de correcciones",
       esSistema: true,
     },
     {
       codigo: "INSPECTOR",
-      nombre: "Inspector de Calidad",
+      nombre: "Inspector",
       descripcion: "Captura de defectos en departamentos autorizados",
       esSistema: true,
     },
@@ -320,11 +320,12 @@ export async function seedCatalogoBase() {
     await assignPermsToRole(superAdminRol.id, permisosDef.map((p) => p.codigo));
   }
 
-  // ADMIN: módulos operativos, gestión de usuarios, departamentos, terminales y reportes (no sistema.configurar)
+  // ADMIN: módulos operativos, gestión de usuarios, departamentos y reportes (no gestión de terminales ni sistema.configurar)
+  // Conforme a las reglas de seguridad: Únicamente SUPER_ADMIN puede gestionar/vincular terminales
   if (adminRol) {
     await assignPermsToRole(adminRol.id, [
       "usuarios.consultar", "usuarios.crear", "usuarios.editar", "usuarios.desactivar",
-      "departamentos.consultar", "terminales.consultar", "terminales.gestionar",
+      "departamentos.consultar", "terminales.consultar",
       "defectos.consultar_departamento", "defectos.corregir", "reportes.consultar", "auditoria.consultar",
     ]);
   }
