@@ -15,6 +15,44 @@ router.post(
   (req, res, next) => sessionController.login(req, res, next),
 );
 
+/**
+ * Obtiene la lista de usuarios activos para el selector de login rápido.
+ * Devuelve inspectores (para la vista general) y administrativos/coordinadores
+ * (para el acceso de administración, incluyendo SUPER_ADMIN).
+ * Endpoint público y ligero.
+ */
+router.get("/usuarios-login", async (_req, res, next) => {
+  try {
+    const usuarios = await prisma.usuario.findMany({
+      where: { estado: "ACTIVO" },
+      select: {
+        id: true,
+        usuario: true,
+        nombre: true,
+        rol: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+          },
+        },
+      },
+      orderBy: { nombre: "asc" },
+    });
+
+    const inspectores = usuarios.filter((u) => u.rol.codigo === "INSPECTOR");
+    const administradores = usuarios.filter((u) => u.rol.codigo !== "INSPECTOR");
+
+    return sendSuccess(
+      res,
+      { inspectores, administradores },
+      "Usuarios para inicio de sesión obtenidos exitosamente",
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post(
   "/refresh",
   (req, res, next) => sessionController.refresh(req, res, next),
