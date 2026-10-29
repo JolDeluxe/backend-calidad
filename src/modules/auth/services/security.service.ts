@@ -26,16 +26,19 @@ export class SecurityService {
   }
 
   /**
-   * Cifra la contraseña con AES-256-GCM para que los administradores autorizados puedan consultarla.
+   * Cifra la contraseña con AES-256-GCM para que los administradores autorizados puedan consultarla,
+   * adjuntando además un salt aleatorio criptográfico único de 16 bytes (32 chars hex) por versión
+   * de credencial para la derivación PBKDF2 del verificador offline.
    */
   encryptPassword(password: string): string {
     const key = this.getEncryptionKey();
     const iv = randomBytes(12);
+    const offlineSalt = randomBytes(16).toString("hex");
     const cipher = createCipheriv("aes-256-gcm", key, iv);
     let encrypted = cipher.update(password, "utf8", "hex");
     encrypted += cipher.final("hex");
     const tag = cipher.getAuthTag().toString("hex");
-    return `${ENC_PREFIX}${iv.toString("hex")}:${tag}:${encrypted}`;
+    return `${ENC_PREFIX}${iv.toString("hex")}:${tag}:${encrypted}:${offlineSalt}`;
   }
 
   /**
@@ -49,7 +52,7 @@ export class SecurityService {
     try {
       const payload = storedValue.slice(ENC_PREFIX.length);
       const parts = payload.split(":");
-      if (parts.length !== 3) return null;
+      if (parts.length < 3) return null;
       const [ivHex, tagHex, encryptedHex] = parts;
       if (!ivHex || !tagHex || !encryptedHex) return null;
 

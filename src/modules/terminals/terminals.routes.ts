@@ -52,6 +52,7 @@ router.get("/estado", async (req, res) => {
           departamentoId: terminal.departamentoId,
           departamentoNombre: terminal.departamento.nombre,
           departamentoCodigo: terminal.departamento.codigo,
+          numeroLineas: terminal.departamento.numeroLineas,
           estado: terminal.estado,
         },
       },

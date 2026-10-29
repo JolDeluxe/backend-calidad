@@ -70,6 +70,24 @@ export const createApp = (): Express => {
     });
   });
 
+  // Stream SSE de detección inmediata de estado del servidor en tiempo real
+  app.get("/api/v1/connectivity/stream", (_req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    res.write("data: connected\n\n");
+
+    const heartbeat = setInterval(() => {
+      res.write(": keepalive\n\n");
+    }, 15000);
+
+    _req.on("close", () => {
+      clearInterval(heartbeat);
+    });
+  });
+
   app.use("/api/v1", v1Router);
 
   app.use((_req, _res, next) => {

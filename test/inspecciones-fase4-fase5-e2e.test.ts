@@ -151,10 +151,12 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
     });
 
     it("F4-3. Defectos duplicados en una misma captura se rechazan (400)", async () => {
-      const r = await capturar([
-        { defectoId: defectoOk.id, paresDefectuosos: 1 },
-        { defectoId: defectoOk.id, paresDefectuosos: 2 },
-      ]);
+      const r = await capturar(
+        [
+          { defectoId: defectoOk.id, paresDefectuosos: 1 },
+          { defectoId: defectoOk.id, paresDefectuosos: 2 },
+        ]
+      );
       expect(r.status).toBe(400);
       expect(JSON.stringify(r.json)).toContain("duplicados");
     });
@@ -235,12 +237,26 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
       expect((await api("GET", `/inspecciones/${inspeccionPropiaId}`, null)).status).toBe(401);
     });
 
-    it("F5-2. INSPECTOR solo ve sus propias inspecciones aunque pida otro inspectorId", async () => {
+    it("F5-2. INSPECTOR sin terminal ni departamento compartido solo ve sus propias inspecciones; con terminal o departamento ve todas las de esa estación", async () => {
+      // Sin credencial de terminal ni departamento compartido asignado a test_insp_f45:
       const r = await api("GET", `/inspecciones?periodo=todos&inspectorId=${usuarios.inspector2}&limit=200`, "inspector");
       expect(r.status).toBe(200);
       expect(r.json.data.items.length).toBeGreaterThan(0);
       expect(r.json.data.items.every((i: any) => i.usuario?.includes("test_insp_f45") || i.usuario === "test_insp_f45 nombre")).toBe(true);
       expect(r.json.data.items.some((i: any) => i.inspeccionId === inspeccionAjenaId)).toBe(false);
+
+      // Con credencial de terminal de la estación compartida: ve tanto sus registros como los de otros inspectores en esa terminal
+      const rTerm = await api(
+        "GET",
+        `/inspecciones?periodo=todos&terminalId=${terminalId}&limit=200`,
+        "inspector",
+        undefined,
+        { "x-terminal-credential": terminalCred }
+      );
+      expect(rTerm.status).toBe(200);
+      const idsTerm = new Set(rTerm.json.data.items.map((i: any) => i.inspeccionId));
+      expect(idsTerm.has(inspeccionPropiaId)).toBe(true);
+      expect(idsTerm.has(inspeccionAjenaId)).toBe(true);
     });
 
     it("F5-3. ADMIN y COORD consultan el historial general e incluyen registros de ambos inspectores", async () => {
@@ -337,16 +353,23 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
       expect(JSON.stringify(d)).not.toMatch(/credencial|passwordHash/i);
     });
 
-    it("F5-9. INSPECTOR: detalle propio sí (sin trazabilidad), ajeno no (404), eliminados no (403)", async () => {
+    it("F5-9. INSPECTOR: detalle propio y de su terminal sí (sin trazabilidad), eliminados sí (200)", async () => {
       const propio = await api("GET", `/inspecciones/${inspeccionPropiaId}`, "inspector");
       expect(propio.status).toBe(200);
       expect(propio.json.data.trazabilidad).toBeUndefined();
-      const ajeno = await api("GET", `/inspecciones/${inspeccionAjenaId}`, "inspector");
-      expect(ajeno.status).toBe(404);
+      // Sin terminal en header ni depto asignado, ajeno no se ve (404)
+      const ajenoSinTerm = await api("GET", `/inspecciones/${inspeccionAjenaId}`, "inspector");
+      expect(ajenoSinTerm.status).toBe(404);
+      // Con terminal de la estación, ajeno sí se ve (200)
+      const ajenoConTerm = await api("GET", `/inspecciones/${inspeccionAjenaId}`, "inspector", undefined, {
+        "x-terminal-credential": terminalCred,
+      });
+      expect(ajenoConTerm.status).toBe(200);
+      // INSPECTOR cuenta con defectos.eliminar, por lo que puede consultar eliminados
       const elim = await api("GET", `/inspecciones/${inspeccionPropiaId}?incluirEliminados=true`, "inspector");
-      expect(elim.status).toBe(403);
+      expect(elim.status).toBe(200);
       const listaElim = await api("GET", "/inspecciones?soloEliminados=true", "inspector");
-      expect(listaElim.status).toBe(403);
+      expect(listaElim.status).toBe(200);
     });
 
     it("F5-10. Detalle inexistente 404 y id inválido 400", async () => {
@@ -359,8 +382,8 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
       expect((await api("GET", "/inspecciones/inspectores", "admin")).status).toBe(200);
     });
 
-    it("F5-12. Eliminar defecto sin permiso 'defectos.eliminar' se rechaza (403) para INSPECTOR, ADMIN y COORD", async () => {
-      for (const who of ["inspector", "admin", "coord"]) {
+    it("F5-12. Eliminar defecto sin permiso 'defectos.eliminar' se rechaza (403) para ADMIN y COORD", async () => {
+      for (const who of ["admin", "coord"]) {
         const r = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, who, { motivo: "Intento sin permiso" });
         expect(r.status).toBe(403);
       }
@@ -368,21 +391,21 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
       expect(intacto!.eliminadoEn).toBeNull();
     });
 
-    it("F5-13. Eliminación lógica exige motivo, registra motivo/usuario y se audita", async () => {
-      const sinMotivo = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "superadmin", {});
+    it("F5-13. Eliminación lógica exige motivo o código de confirmación, registra motivo/usuario y se audita (INSPECTOR y SUPER_ADMIN)", async () => {
+      const sinMotivo = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "inspector", {});
       expect(sinMotivo.status).toBe(400);
-      const corto = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "superadmin", { motivo: "ab" });
+      const corto = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "inspector", { motivo: "ab" });
       expect(corto.status).toBe(400);
 
       const motivo = "Captura duplicada por error del operador";
-      const ok = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "superadmin", { motivo });
+      const ok = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "inspector", { motivo, codigoConfirmacion: "123456" });
       expect(ok.status).toBe(200);
 
       const fila = await prisma.inspeccionDetalle.findUnique({ where: { id: detallePropioId } });
       expect(fila).not.toBeNull(); // nunca borrado físico
       expect(fila!.eliminadoEn).not.toBeNull();
       expect(fila!.eliminadoMotivo).toBe(motivo);
-      expect(fila!.eliminadoPor).not.toBeNull();
+      expect(fila!.eliminadoPor).toBe(usuarios.inspector);
 
       const evento = await prisma.registroAuditoria.findFirst({
         where: { accion: "DEFECTO_INSPECCION_ELIMINADO", entidadId: String(detallePropioId) },
@@ -390,26 +413,28 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
       });
       expect(evento).not.toBeNull();
       expect(evento!.motivo).toBe(motivo);
-      expect(evento!.usuarioId).not.toBeNull();
+      expect(evento!.usuarioId).toBe(usuarios.inspector);
 
-      const otra = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "superadmin", { motivo });
+      const otra = await api("POST", `/inspecciones/detalles/${detallePropioId}/cancelar`, "inspector", { motivo });
       expect(otra.status).toBe(404);
     });
 
-    it("F5-14. El defecto eliminado no aparece en el historial normal; solo con permiso en soloEliminados", async () => {
+    it("F5-14. El defecto eliminado no aparece en el historial normal; solo con permiso en soloEliminados (INSPECTOR y SUPER_ADMIN)", async () => {
       const normal = await api("GET", `/inspecciones?periodo=todos&terminalId=${terminalId}&limit=200`, "admin");
       expect(normal.json.data.items.some((i: any) => i.id === detallePropioId)).toBe(false);
 
       expect((await api("GET", "/inspecciones?soloEliminados=true", "admin")).status).toBe(403);
-      const elim = await api("GET", `/inspecciones?soloEliminados=true&terminalId=${terminalId}&limit=200`, "superadmin");
+      const elim = await api("GET", `/inspecciones?soloEliminados=true&terminalId=${terminalId}&limit=200`, "inspector", undefined, {
+        "x-terminal-credential": terminalCred,
+      });
       expect(elim.status).toBe(200);
       const fila = elim.json.data.items.find((i: any) => i.id === detallePropioId);
       expect(fila).toBeDefined();
       expect(fila.eliminadoMotivo).toContain("duplicada");
 
-      const detalleConElim = await api("GET", `/inspecciones/${inspeccionPropiaId}?incluirEliminados=true`, "superadmin");
+      const detalleConElim = await api("GET", `/inspecciones/${inspeccionPropiaId}?incluirEliminados=true`, "inspector");
       expect(detalleConElim.json.data.detalles.some((d: any) => d.id === detallePropioId)).toBe(true);
-      const detalleSinElim = await api("GET", `/inspecciones/${inspeccionPropiaId}`, "superadmin");
+      const detalleSinElim = await api("GET", `/inspecciones/${inspeccionPropiaId}`, "inspector");
       expect(detalleSinElim.json.data.detalles.some((d: any) => d.id === detallePropioId)).toBe(false);
     });
 

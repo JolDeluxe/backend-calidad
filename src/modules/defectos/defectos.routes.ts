@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { defectosController } from "./controllers/defectos.controller";
-import { authenticate, requireRole } from "../../middlewares/auth";
+import { authenticate, authenticateOrTerminal, requireRole } from "../../middlewares/auth";
 import { validate } from "../../middlewares/validate";
 import {
   defectoIdParamSchema,
@@ -18,6 +18,13 @@ import {
 } from "./defectos.schema";
 
 const router = Router();
+
+router.get(
+  "/",
+  authenticateOrTerminal,
+  validate({ query: getDefectosQuerySchema }),
+  (req, res, next) => defectosController.getDefectos(req, res, next)
+);
 
 router.use(authenticate);
 
@@ -44,12 +51,6 @@ router.post(
   requireRole(["SUPER_ADMIN", "ADMIN"]),
   validate({ body: crearLoteDefectosSchema }),
   (req, res, next) => defectosController.crearLote(req, res, next)
-);
-
-router.get(
-  "/",
-  validate({ query: getDefectosQuerySchema }),
-  (req, res, next) => defectosController.getDefectos(req, res, next)
 );
 
 router.get(

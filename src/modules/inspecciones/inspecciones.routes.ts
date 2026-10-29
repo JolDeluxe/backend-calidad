@@ -14,12 +14,32 @@ import {
   detalleIdParamSchema,
   inspeccionIdParamSchema,
   detalleIncluirQuerySchema,
+  syncOfflineBatchSchema,
 } from "./inspecciones.schema";
 import { resolverAlcanceHistorial, requireAlcanceGeneral } from "./inspecciones.access";
 
 const router = Router();
 
+/**
+ * Sincronización diferida e idempotente de capturas offline por lote.
+ * - Exige terminal física vinculada y activa (`requireTerminal`).
+ * - Cada elemento del lote porta su propio `offlineToken` firmado con HMAC-SHA256
+ *   por el servidor para el inspector que realizó la captura, permitiendo drenar
+ *   la cola aunque en la PC haya iniciado sesión otro inspector o ninguno.
+ */
+router.post(
+  "/sync",
+  requireTerminal,
+  validate({ body: syncOfflineBatchSchema }),
+  (req, res, next) => inspeccionesController.syncOfflineBatch(req, res, next),
+);
+
 router.use(authenticate);
+
+// Métricas agregadas del Dashboard de inicio (Top 10 semanal y contadores hoy para todos los usuarios)
+router.get("/dashboard-metricas", (req, res, next) =>
+  inspeccionesController.getDashboardMetricas(req, res, next)
+);
 
 // Registrar nueva inspección de defectos:
 // 1. Debe estar autenticado (authenticate a nivel de router).

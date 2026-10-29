@@ -55,7 +55,7 @@ export const getInspeccionesQuerySchema = z
     anio: z.coerce.number().int().min(2020).max(2035).optional(),
     soloEliminados: z.preprocess((val) => val === "true" || val === true, z.boolean()).optional(),
     page: z.coerce.number().int().positive().max(100000).default(1),
-    limit: z.coerce.number().int().positive().max(200).default(30),
+    limit: z.coerce.number().int().positive().max(1000).default(30),
   })
   .superRefine((q, ctx) => {
     if (q.fechaDesde && q.fechaHasta) {
@@ -109,3 +109,20 @@ export const eliminacionLogicaSchema = z.object({
 );
 
 export const cancelarDetalleSchema = eliminacionLogicaSchema;
+
+export const syncOfflineItemSchema = z.object({
+  idLocalCliente: idempotencyKeySchema,
+  inspectorId: z.number().int().positive("El ID del inspector debe ser válido"),
+  offlineToken: z.string().trim().min(10, "El token offline es obligatorio"),
+  fechaCapturaDispositivo: z.string().trim().min(1, "La fecha de captura del dispositivo es obligatoria"),
+  esContingencia: z.boolean().optional().default(false),
+  motivoContingencia: z.string().trim().max(255).optional().nullable(),
+  payload: createInspeccionSchema,
+});
+
+export const syncOfflineBatchSchema = z.object({
+  items: z
+    .array(syncOfflineItemSchema)
+    .min(1, "Debe incluir al menos una captura para sincronizar")
+    .max(50, "Máximo 50 capturas por lote de sincronización"),
+});

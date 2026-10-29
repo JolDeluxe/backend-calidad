@@ -341,11 +341,12 @@ export async function seedCatalogoBase() {
     ]);
   }
 
-  // INSPECTOR: captura en terminal y consulta de registros propios
+  // INSPECTOR: captura en terminal, consulta de registros propios/terminal y eliminación lógica
   if (inspectorRol) {
     await assignPermsToRole(inspectorRol.id, [
       "defectos.capturar",
       "defectos.consultar_propios",
+      "defectos.eliminar",
     ]);
   }
 

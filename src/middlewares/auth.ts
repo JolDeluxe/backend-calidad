@@ -133,3 +133,58 @@ export const requireTerminal = async (req: Request, _res: Response, next: NextFu
     next(error);
   }
 };
+
+/**
+ * Middleware que permite el acceso si la petición cuenta con una sesión de usuario válida
+ * (`Authorization: Bearer <token>`) O con una credencial de terminal física activa (`x-terminal-credential`).
+ * Si se envía un Bearer token inválido pero la credencial de terminal es válida, permite continuar
+ * para sincronización de catálogos de terminal cuando el usuario no ha iniciado sesión aún.
+ * Si no se envía credencial de terminal o ambos fallan, rechaza con 401.
+ */
+export const authenticateOrTerminal = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    const credencialTerminal = req.headers["x-terminal-credential"] as string | undefined;
+
+    let userValid = false;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      if (token) {
+        const decoded = securityService.verifyAccessToken(token);
+        if (decoded && decoded.sesionId) {
+          try {
+            await sessionService.validateActiveUser(decoded.usuarioId);
+            await sessionService.validateActiveSession(decoded.sesionId);
+            req.user = decoded;
+            userValid = true;
+          } catch {
+            // Si la sesión expiró pero hay credencial de terminal, se evaluará la terminal abajo
+          }
+        }
+      }
+    }
+
+    if (credencialTerminal) {
+      try {
+        const terminal = await terminalsService.validateTerminal(credencialTerminal);
+        req.terminal = {
+          id: terminal.id,
+          nombre: terminal.nombre,
+          departamentoId: terminal.departamentoId,
+        };
+      } catch (err) {
+        if (!userValid) {
+          throw err;
+        }
+      }
+    }
+
+    if (!userValid && !req.terminal) {
+      throw new UnauthorizedError("Token de acceso o credencial de terminal no proporcionado o inválido");
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

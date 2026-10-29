@@ -1,7 +1,9 @@
 import { prisma } from "../../../config/database";
-import { NotFoundError, ConflictError } from "../../../utils/errors";
+import { NotFoundError, ConflictError, BadRequestError } from "../../../utils/errors";
 import { auditService } from "../../audit/services/audit.service";
 import type { Prisma } from "@prisma/client";
+
+export const LINEAS_SISTEMA_PROTEGIDAS = ["BOTA", "ACCESORIOS"];
 
 export class TiposOperacionService {
   async getTiposOperacion(incluirInactivos = false) {
@@ -318,6 +320,32 @@ export class TiposOperacionService {
 
   async deleteLinea(id: number, usuarioId?: number) {
     const actual = await this.getLineaById(id);
+
+    // 1. Protección de líneas maestras del sistema
+    if (actual.codigo && LINEAS_SISTEMA_PROTEGIDAS.includes(actual.codigo.toUpperCase())) {
+      throw new BadRequestError(
+        `La línea '${actual.nombre}' es una línea maestra protegida del sistema y no puede eliminarse.`
+      );
+    }
+
+    // 2. Protección contra departamentos huérfanos
+    const deptosActivosCount = await prisma.departamentoLinea.count({
+      where: {
+        lineaId: id,
+        activo: true,
+        eliminadoEn: null,
+        departamento: {
+          eliminadoEn: null,
+          estado: "ACTIVO",
+        },
+      },
+    });
+
+    if (deptosActivosCount > 0) {
+      throw new BadRequestError(
+        `No es posible eliminar la línea '${actual.nombre}' porque tiene ${deptosActivosCount} departamento(s) asignado(s). Primero debe reasignar o desvincular los departamentos para evitar dejarlos huérfanos.`
+      );
+    }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const eliminada = await tx.linea.update({
