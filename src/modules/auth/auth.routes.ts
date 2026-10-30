@@ -6,6 +6,7 @@ import { loginSchema } from "./auth.schema";
 import { offlineAuthService } from "./services/offline-auth.service";
 import { sendSuccess } from "../../utils/response";
 import { auditService } from "../audit/services/audit.service";
+import { prisma } from "../../config/database";
 
 const router = Router();
 
