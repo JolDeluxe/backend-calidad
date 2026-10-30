@@ -8,6 +8,10 @@
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit",
+    "typecheck:integration": "tsc --project tsconfig.integration.json --noEmit",
+    "test": "bun scripts/run-backend-tests.ts",
+    "test:integration": "bun test test/offline-fases-abcd-e2e.test.ts",
+    "test:all": "bun test",
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "bun prisma/seed.ts"

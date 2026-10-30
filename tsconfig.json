@@ -10,10 +10,8 @@
     "noEmit": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./../frontend/src/*"]
-    }
+    "baseUrl": "."
   },
-  "include": ["src/**/*", "prisma/**/*", "test/**/*"]
+  "include": ["src/**/*", "prisma/**/*", "test/**/*"],
+  "exclude": ["node_modules", "test/offline-fases-abcd-e2e.test.ts"]
 }
