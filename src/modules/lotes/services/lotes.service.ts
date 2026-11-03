@@ -11,12 +11,14 @@ export class LotesService {
     const lote = await prisma.produccionLote.findFirst({
       where: {
         lote: normalizado,
+        estado: "ACTIVO",
+        cantidad: { gt: 0 },
         eliminadoEn: null,
       },
     });
 
     if (!lote) {
-      throw new NotFoundError(`El lote '${normalizado}' no existe o ha sido dado de baja.`);
+      throw new NotFoundError(`El lote '${normalizado}' no existe o no está disponible en la lista de producción.`);
     }
 
     return {
@@ -46,6 +48,8 @@ export class LotesService {
     limit: number;
   }) {
     const where: Record<string, unknown> = {
+      estado: "ACTIVO",
+      cantidad: { gt: 0 },
       eliminadoEn: null,
     };
 

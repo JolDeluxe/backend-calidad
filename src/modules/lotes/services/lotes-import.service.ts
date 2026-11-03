@@ -271,8 +271,9 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
           const mismaDesc = (existente.descripcion || null) === (item.descripcion || null);
           const mismoCliente = existente.cliente === item.cliente;
           const mismaHorma = (existente.horma || null) === (item.horma || null);
+          const mismoEstado = existente.estado === "ACTIVO";
 
-          if (mismoListaLote && mismaLista && mismoProducto && mismoModelo && mismaCantidad && mismaDesc && mismoCliente && mismaHorma) {
+          if (mismoListaLote && mismaLista && mismoProducto && mismoModelo && mismaCantidad && mismaDesc && mismoCliente && mismaHorma && mismoEstado) {
             // IDÉNTICO: No tocar para respetar auditoría y precedencia
             result.omitidos++;
           } else {
@@ -288,6 +289,7 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
                 descripcion: item.descripcion,
                 cliente: item.cliente,
                 horma: item.horma,
+                estado: "ACTIVO",
                 actualizadoPor: usuarioId,
               },
             });
@@ -296,6 +298,24 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
         }
       }
     });
+  }
+
+  // 4. Los lotes que ya NO vengan en el archivo maestro de producción pasan a INACTIVO
+  const lotesActivosEnArchivo = filasParaProcesar.map((f) => f.lote);
+  if (lotesActivosEnArchivo.length > 0) {
+    const inactivados = await prisma.produccionLote.updateMany({
+      where: {
+        lote: { notIn: lotesActivosEnArchivo },
+        estado: "ACTIVO",
+      },
+      data: {
+        estado: "INACTIVO",
+        actualizadoPor: usuarioId,
+      },
+    });
+    if (inactivados.count > 0) {
+      console.log(`ℹ️ [Lotes] Se marcaron ${inactivados.count} lotes como INACTIVO al no estar en el archivo maestro actual.`);
+    }
   }
 
   result.duracionMs = Date.now() - t0;

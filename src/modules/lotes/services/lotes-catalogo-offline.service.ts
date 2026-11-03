@@ -44,8 +44,9 @@ export class LotesCatalogoOfflineService {
       const desdeConMargen = new Date(Math.max(0, params.desde.getTime() - margenMs));
       where.fechaActualizacion = { gte: desdeConMargen };
     } else {
-      // Carga inicial (bootstrap): solo lotes activos y no eliminados
+      // Carga inicial (bootstrap): solo lotes activos, no eliminados y con pares válidos de producción
       where.estado = "ACTIVO";
+      where.cantidad = { gt: 0 };
       where.eliminadoEn = null;
     }
 
@@ -81,7 +82,7 @@ export class LotesCatalogoOfflineService {
       cantidad: Number(l.cantidad),
       horma: l.horma,
       cliente: l.cliente,
-      activo: l.estado === "ACTIVO" && l.eliminadoEn === null,
+      activo: l.estado === "ACTIVO" && Number(l.cantidad) > 0 && l.eliminadoEn === null,
       actualizadoEn: l.fechaActualizacion,
     }));
 
