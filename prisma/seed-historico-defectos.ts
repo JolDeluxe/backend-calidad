@@ -182,17 +182,34 @@ async function main() {
   const allRows: RawRow[] = [];
   let skippedRows = 0;
 
-  for (const file of files) {
-    const filePath = path.join(basePath, file);
-    if (!fs.existsSync(filePath)) {
-      console.warn(`  [ADVERTENCIA] Archivo no encontrado: ${filePath}`);
-      continue;
-    }
+  // Si la ruta es UNC (\\servidor\...), Bun en Windows puede tener limitaciones para abrir archivos UNC directamente con fs.openSync.
+  // En ese caso, copiamos los 16 archivos a un directorio temporal local seguro para garantizar lectura instantánea.
+  let workingDir = basePath;
+  const isUnc = basePath.startsWith('\\\\');
+  let tempLocalDir: string | null = null;
 
-    const content = fs.readFileSync(filePath, 'latin1');
-    const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
-    const isEliminado = file.startsWith('Eliminados_');
-    const isAviosDefectos = (file === 'Defectos_Avios.txt');
+  if (isUnc) {
+    tempLocalDir = path.join(process.env.TEMP || 'C:\\Windows\\Temp', 'calidad_mbc_seed_' + Date.now());
+    fs.mkdirSync(tempLocalDir, { recursive: true });
+    console.log(`  -> Sincronizando archivos desde la red UNC a carpeta temporal local...`);
+    const copyCmd = `Copy-Item -Path "${basePath}\\*.txt" -Destination "${tempLocalDir}" -Force`;
+    Bun.spawnSync(['powershell', '-NoProfile', '-Command', copyCmd]);
+    workingDir = tempLocalDir;
+    console.log(`  -> Archivos sincronizados en: ${workingDir}`);
+  }
+
+  try {
+    for (const file of files) {
+      const filePath = path.join(workingDir, file);
+      if (!fs.existsSync(filePath)) {
+        console.warn(`  [ADVERTENCIA] Archivo no encontrado: ${filePath}`);
+        continue;
+      }
+
+      const content = fs.readFileSync(filePath, 'latin1');
+      const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+      const isEliminado = file.startsWith('Eliminados_');
+      const isAviosDefectos = (file === 'Defectos_Avios.txt');
 
     for (let i = 0; i < lines.length; i++) {
       const parts = lines[i].split('\t').map(p => p.trim());
@@ -564,6 +581,13 @@ async function main() {
   console.log(`✓ Detalles de defectos:            ${totalDetalles.toLocaleString()}`);
   console.log('========================================================================\n');
   console.log('¡Importación completada con éxito!');
+  } finally {
+    if (tempLocalDir && fs.existsSync(tempLocalDir)) {
+      try {
+        fs.rmSync(tempLocalDir, { recursive: true, force: true });
+      } catch (_) {}
+    }
+  }
 }
 
 main()
