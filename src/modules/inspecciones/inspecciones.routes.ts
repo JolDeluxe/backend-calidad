@@ -36,9 +36,11 @@ router.post(
 
 router.use(authenticate);
 
-// Métricas agregadas del Dashboard de inicio (Top 10 semanal y contadores hoy para todos los usuarios)
-router.get("/dashboard-metricas", (req, res, next) =>
-  inspeccionesController.getDashboardMetricas(req, res, next)
+// Métricas agregadas del Dashboard de inicio (Solo SUPER_ADMIN)
+router.get(
+  "/dashboard-metricas",
+  requireRole(["SUPER_ADMIN"]),
+  (req, res, next) => inspeccionesController.getDashboardMetricas(req, res, next)
 );
 
 // Registrar nueva inspección de defectos:

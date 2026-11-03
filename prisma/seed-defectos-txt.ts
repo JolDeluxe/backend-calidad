@@ -1,5 +1,6 @@
 import { prisma } from '../src/config/database';
 import fs from 'fs';
+import path from 'path';
 
 /**
  * Script de importación del catálogo de defectos desde Catalogo_Def.txt
