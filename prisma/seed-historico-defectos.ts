@@ -80,6 +80,14 @@ async function main() {
     );
   }
 
+  // 0. Limpieza previa para reemplazo limpio (permite re-ejecutar tantas veces como sea necesario)
+  console.log('\n0. Limpiando datos históricos previos para reemplazo limpio...');
+  await prisma.inspeccionDetalle.deleteMany();
+  await prisma.inspeccionCabecera.deleteMany();
+  await prisma.produccionLote.deleteMany();
+  await prisma.inspeccionHistoricaOrigen.deleteMany();
+  console.log('✓ Tablas de inspecciones y lotes limpiadas exitosamente.');
+
   const files = [
     // Archivos de defectos activos
     'Defectos_corte.txt',

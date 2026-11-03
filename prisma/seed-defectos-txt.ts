@@ -78,6 +78,10 @@ async function importarCatalogoDefectos() {
     { colIdx: 14, deptoId: deptoMapByCodigo.get('ADORNO') || 4, nombre: 'Adorno' },
   ];
 
+  // Si se pasa flag --clean o reinicio completo, limpiar relaciones previas para evitar inconsistencias
+  console.log('Verificando y sincronizando catálogo de defectos...');
+  const clavesArchivo = new Set<number>();
+
   const rawContent = fs.readFileSync(filePath, 'utf8');
   const lines = rawContent.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
@@ -134,6 +138,7 @@ async function importarCatalogoDefectos() {
         activo: true,
       },
     });
+    clavesArchivo.add(clave);
     insertados++;
 
     // 2. Asociar el defecto con su departamento propietario en defectos_departamentos
@@ -192,6 +197,25 @@ async function importarCatalogoDefectos() {
       });
       etapasRegistradas++;
     }
+  }
+
+  // 4. Si se eliminó algún defecto del archivo TXT que existía antes, desactivarlo (soft-delete) para mantener integridad
+  const desactivados = await prisma.defecto.updateMany({
+    where: {
+      clave: {
+        notIn: Array.from(clavesArchivo),
+        not: 9999, // Preservar defecto comodín histórico
+      },
+      activo: true,
+    },
+    data: {
+      activo: false,
+      eliminadoEn: new Date(),
+    },
+  });
+
+  if (desactivados.count > 0) {
+    console.log(`- Defectos removidos del archivo que fueron desactivados: ${desactivados.count}`);
   }
 
   console.log('\n=================================================================');
