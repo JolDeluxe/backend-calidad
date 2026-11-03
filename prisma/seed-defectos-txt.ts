@@ -28,11 +28,11 @@ import path from 'path';
 async function resolverRutaCatalogo(): Promise<string> {
   const candidatePaths = [
     process.env.CATALOGO_DEFECTOS_PATH,
+    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse\\Catalogo_Def.txt',
+    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse\\Catalogo_Def.txt',
     'H:\\CALIDAD\\App\\Quality System\\DataBase\\Catalogo_Def.txt',
     '\\\\200.1.1.58\\usuariosmbc\\CALIDAD\\App\\Quality System\\DataBase\\Catalogo_Def.txt',
     '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase\\Catalogo_Def.txt',
-    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse\\Catalogo_Def.txt',
-    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse\\Catalogo_Def.txt',
   ].filter((p): p is string => Boolean(p));
 
   for (const p of candidatePaths) {

@@ -89,11 +89,11 @@ function normalizarLineaTexto(val: string): string {
 function resolverDirectorioHistorico(archivosRequeridos: string[]): DirectorioValido {
   const candidateDirs = [
     process.env.HISTORICO_DEFECTOS_DIR,
+    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse',
+    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse',
     'H:\\CALIDAD\\App\\Quality System\\DataBase',
     '\\\\200.1.1.58\\usuariosmbc\\CALIDAD\\App\\Quality System\\DataBase',
     '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase',
-    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse',
-    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse',
   ].filter((p): p is string => Boolean(p));
 
   for (const dir of candidateDirs) {
