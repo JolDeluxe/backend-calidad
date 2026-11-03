@@ -1158,9 +1158,6 @@ export class InspeccionesService {
   async getFilasInspeccion(params: GetInspeccionesParams) {
     const where: Record<string, unknown> = {
       eliminadoEn: params.soloEliminados ? { not: null } : null,
-      inspeccion: {
-        eliminadoEn: null,
-      },
     };
 
     const andConditions: any[] = [];
