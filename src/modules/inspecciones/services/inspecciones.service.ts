@@ -1158,6 +1158,7 @@ export class InspeccionesService {
   async getFilasInspeccion(params: GetInspeccionesParams) {
     const where: Record<string, unknown> = {
       eliminadoEn: params.soloEliminados ? { not: null } : null,
+      inspeccion: {},
     };
 
     const andConditions: any[] = [];
@@ -1311,7 +1312,10 @@ export class InspeccionesService {
         where,
         skip,
         take,
-        orderBy: { id: "desc" },
+        orderBy: [
+          { inspeccion: { fechaInspeccion: "desc" } },
+          { id: "desc" },
+        ],
         include: {
           inspeccion: {
             include: {

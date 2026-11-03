@@ -36,25 +36,25 @@ const INSPECTORES: InspectorSeedData[] = [
     nombre: 'YOLANDA FLORES',
     usuario: 'yolanda.flores',
     passwordPlano: '*01pes_501',
-    departamentoCodigo: 'PESPUENTE',
+    departamentoCodigo: 'PESPUNTE',
   },
   {
     nombre: 'JUAN DE DIOS PADILLA HERNANDEZ',
     usuario: 'juan.padilla',
     passwordPlano: '*01pes_501',
-    departamentoCodigo: 'PESPUENTE',
+    departamentoCodigo: 'PESPUNTE',
   },
   {
     nombre: 'VANESSA JACQUELIN VALLECILLO',
     usuario: 'vanessa.vallecillo',
     passwordPlano: '*01Pes_502',
-    departamentoCodigo: 'PESPUENTE',
+    departamentoCodigo: 'PESPUNTE',
   },
   {
     nombre: 'WENDY LIZBETH SANCHEZ',
     usuario: 'wendy.sanchez',
     passwordPlano: '*01Ado_501',
-    departamentoCodigo: 'PESPUENTE', // Adorno / Pespunte
+    departamentoCodigo: 'PESPUNTE', // Adorno / Pespunte
   },
   {
     nombre: 'ALBA MARISOL MUÑOZ',
@@ -90,7 +90,7 @@ const INSPECTORES: InspectorSeedData[] = [
     nombre: 'FRANCISCO ARTURO GONZALEZ',
     usuario: 'francisco.gonzalez',
     passwordPlano: '*01Pes_503',
-    departamentoCodigo: 'PESPUENTE',
+    departamentoCodigo: 'PESPUNTE',
   },
   // Inspector histórico dado de baja lógica para conservar trazabilidad de auditorías 2024/2025
   {

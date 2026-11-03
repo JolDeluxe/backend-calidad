@@ -71,7 +71,7 @@ async function replicarConfiguracionProduccion() {
     { id: 1, codigo: 'CORTE', nombre: 'CORTE', estado: 'ACTIVO' as const, numeroLineas: 1 },
     { id: 2, codigo: 'PRELIMINARES', nombre: 'PRELIMINARES', estado: 'ACTIVO' as const, numeroLineas: 1 },
     { id: 3, codigo: 'BORDADO_Y_LASER', nombre: 'BORDADO Y LASER', estado: 'ACTIVO' as const, numeroLineas: 1 },
-    { id: 4, codigo: 'PESPUENTE', nombre: 'PESPUENTE', estado: 'ACTIVO' as const, numeroLineas: 1 },
+    { id: 4, codigo: 'PESPUNTE', nombre: 'PESPUNTE', estado: 'ACTIVO' as const, numeroLineas: 1 },
     { id: 5, codigo: 'MONTADO', nombre: 'MONTADO', estado: 'ACTIVO' as const, numeroLineas: 2 },
     { id: 6, codigo: 'ACABADO', nombre: 'ACABADO', estado: 'ACTIVO' as const, numeroLineas: 2 },
     { id: 7, codigo: 'AVIOS', nombre: 'AVIOS', estado: 'ACTIVO' as const, numeroLineas: 1 },

@@ -212,10 +212,24 @@ async function main() {
       deptoMap.set(normalizarTexto(dep.nombre), dep.id);
     }
     // Variaciones conocidas
-    deptoMap.set('BORDADO', deptoMap.get('BORDADO Y LASER') || 3);
+    deptoMap.set('PESPUNTE', deptoMap.get('PESPUNTE') || deptoMap.get('PESPUENTE') || 4);
+    deptoMap.set('PESPUENTE', deptoMap.get('PESPUNTE') || 4);
+    deptoMap.set('BORDADO', deptoMap.get('BORDADO Y LASER') || deptoMap.get('BORDADO_Y_LASER') || 3);
     deptoMap.set('BORDADO Y LASER', deptoMap.get('BORDADO_Y_LASER') || deptoMap.get('BORDADO Y LASER') || 3);
     deptoMap.set('ADORNO', deptoMap.get('PESPUNTE') || 4); // Adorno pertenece al área de Pespunte en el flujo
     deptoMap.set('PRUEBA', deptoMap.get('CORTE') || 1);
+
+    // Mapeo inequívoco del archivo origen a la terminal/departamento de auditoría
+    const archivoAuditoriaMap = new Map<string, number>([
+      ['Defectos_corte.txt', deptoMap.get('CORTE') || 1],
+      ['Defectos_Preliminares.txt', deptoMap.get('PRELIMINARES') || 2],
+      ['Defectos_Bordado.txt', deptoMap.get('BORDADO_Y_LASER') || deptoMap.get('BORDADO Y LASER') || 3],
+      ['Defectos_Pespunte.txt', deptoMap.get('PESPUNTE') || 4],
+      ['Defectos_Montado.txt', deptoMap.get('MONTADO') || 5],
+      ['Defectos_Acabado.txt', deptoMap.get('ACABADO') || 6],
+      ['Defectos_Avios.txt', deptoMap.get('AVIOS') || 7],
+      ['Defectos_Adorno.txt', deptoMap.get('ADORNO') || deptoMap.get('PESPUNTE') || 4],
+    ]);
 
     const defaultDeptoId = deptoMap.get('CORTE') || departamentosDB[0].id;
 
@@ -460,9 +474,9 @@ async function main() {
       const loteId = loteIdMap.get(r.lote);
       if (!loteId) continue;
 
-      // Normalizar departamento auditoría
+      // Determinar la terminal / departamento de auditoría según el archivo de origen (cada archivo representa su estación física)
       const normAuditoria = normalizarTexto(r.deptoAuditoriaTexto);
-      const departamentoAuditoriaId = deptoMap.get(normAuditoria) || defaultDeptoId;
+      const departamentoAuditoriaId = archivoAuditoriaMap.get(r.archivo) || deptoMap.get(normAuditoria) || defaultDeptoId;
 
       // Normalizar inspector
       const normUser = normalizarTexto(r.usuarioTexto);
@@ -593,7 +607,7 @@ async function main() {
         }
       }
 
-      const departamentoAuditoriaId = deptoMap.get(normAuditoria) || defaultDeptoId;
+      const departamentoAuditoriaId = archivoAuditoriaMap.get(r.archivo) || deptoMap.get(normAuditoria) || defaultDeptoId;
 
       const dateStr = r.fechaParseada.toISOString().split('T')[0];
       const sessionKey = `${loteId}|${inspectorId}|${departamentoAuditoriaId}|${dateStr}|${r.isEliminado ? '1' : '0'}`;
