@@ -60,10 +60,11 @@ function normalizarTexto(str: string): string {
 }
 
 function normalizarLineaTexto(val: string): string {
-  if (!val) return 'N/A';
+  if (!val) return 'L1';
   const v = val.trim().toUpperCase();
-  if (v === 'L1' || v === 'L2' || v === 'N/A' || v === 'ACCESORIO') return v;
-  if (v === 'NA' || v === '' || v === 'LINEA') return 'N/A';
+  if (v === 'L1') return 'L1';
+  if (v === 'L2') return 'L2';
+  if (v === 'NA' || v === 'N/A' || v === '' || v === 'LINEA') return 'L1';
 
   // Si tiene formato 'X L1' o 'X L2' como '2L1' => el prefijo suele ser repetición o lote, verificar terminación
   if (/L1/i.test(v) && !/L2/i.test(v)) return 'L1';
@@ -76,8 +77,8 @@ function normalizarLineaTexto(val: string): string {
     if (v.endsWith('2')) return 'L2';
   }
 
-  if (v === 'L') return 'L1';
-  return 'N/A';
+  // Todo lo que no tenga línea explícita o sea dudoso se asigna como L1
+  return 'L1';
 }
 
 /**
@@ -168,15 +169,6 @@ async function main() {
     'Defectos_Acabado.txt',
     'Defectos_Adorno.txt',
     'Defectos_Avios.txt',
-    // Archivos de eliminados
-    'Eliminados_Corte.txt',
-    'Eliminados_Preliminares.txt',
-    'Eliminados_Bordado.txt',
-    'Eliminados_Pespunte.txt',
-    'Eliminados_Montado.txt',
-    'Eliminados_Acabado.txt',
-    'Eliminados_Adorno.txt',
-    'Eliminados_Avios.txt',
   ];
 
   // Resolver directorio comprobando existencia real de archivos y tamaño > 0
@@ -256,8 +248,8 @@ async function main() {
       defectoClaveMap.set(d.clave, { id: d.id, departamentoId: d.departamentoId });
     }
 
-    // 2. Parsear los 16 archivos ANTES de tocar la base de datos
-    console.log('\n2. Leyendo y analizando los 16 archivos planos...');
+    // 2. Parsear los 8 archivos activos de defectos ANTES de tocar la base de datos
+    console.log(`\n2. Leyendo y analizando los ${files.length} archivos planos...`);
     const allRows: RawRow[] = [];
     let skippedRows = 0;
 
