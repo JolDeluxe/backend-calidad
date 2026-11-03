@@ -59,6 +59,27 @@ function normalizarTexto(str: string): string {
     .trim();
 }
 
+function normalizarLineaTexto(val: string): string {
+  if (!val) return 'N/A';
+  const v = val.trim().toUpperCase();
+  if (v === 'L1' || v === 'L2' || v === 'N/A' || v === 'ACCESORIO') return v;
+  if (v === 'NA' || v === '' || v === 'LINEA') return 'N/A';
+
+  // Si tiene formato 'X L1' o 'X L2' como '2L1' => el prefijo suele ser repetición o lote, verificar terminación
+  if (/L1/i.test(v) && !/L2/i.test(v)) return 'L1';
+  if (/L2/i.test(v) || /LK2/i.test(v) || /LO2/i.test(v) || /LÑ2/i.test(v)) return 'L2';
+  if (v === '1' || v === '1L' || v === 'LI') return 'L1';
+  if (v === '2' || v === '2L') return 'L2';
+
+  if (/^\d+$/.test(v)) {
+    if (v.endsWith('1')) return 'L1';
+    if (v.endsWith('2')) return 'L2';
+  }
+
+  if (v === 'L') return 'L1';
+  return 'N/A';
+}
+
 /**
  * Evalúa las rutas candidatas comprobando que contengan archivos .txt reales con tamaño > 0.
  * Si una ruta de red UNC o mapeada devuelve 0 archivos (por ejemplo por aislamiento UAC/elevación),
@@ -293,6 +314,9 @@ async function main() {
           horma = parts[12] || '';
           usuarioTexto = parts[13] || '';
         }
+
+        // Normalizar lineaTexto para evitar textos corrompidos de Access (ej: '6L2', 'LK2', '17561')
+        lineaTexto = normalizarLineaTexto(lineaTexto);
 
         // Validar fila mínima
         if (!lote && !defectoClave) {
