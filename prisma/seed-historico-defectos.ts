@@ -192,10 +192,18 @@ async function main() {
     tempLocalDir = path.join(process.env.TEMP || 'C:\\Windows\\Temp', 'calidad_mbc_seed_' + Date.now());
     fs.mkdirSync(tempLocalDir, { recursive: true });
     console.log(`  -> Sincronizando archivos desde la red UNC a carpeta temporal local...`);
-    const copyCmd = `Copy-Item -Path "${basePath}\\*.txt" -Destination "${tempLocalDir}" -Force`;
-    Bun.spawnSync(['powershell', '-NoProfile', '-Command', copyCmd]);
+    
+    // Robocopy nativo de Windows (el más rápido y tolerante a rutas UNC con espacios)
+    const roboResult = Bun.spawnSync(['robocopy', basePath, tempLocalDir, '*.txt', '/NP', '/NFL', '/NDL']);
+    // Robocopy retorna exitCodes < 8 para copias exitosas
+    if (roboResult.exitCode > 8) {
+      console.warn(`  ⚠️ Robocopy código ${roboResult.exitCode}, intentando respaldo con PowerShell...`);
+      Bun.spawnSync(['powershell', '-NoProfile', '-Command', `Copy-Item -LiteralPath (Get-ChildItem -LiteralPath '${basePath}' -Filter '*.txt').FullName -Destination '${tempLocalDir}' -Force`]);
+    }
+    
     workingDir = tempLocalDir;
-    console.log(`  -> Archivos sincronizados en: ${workingDir}`);
+    const copiedFiles = fs.existsSync(tempLocalDir) ? fs.readdirSync(tempLocalDir) : [];
+    console.log(`  -> Archivos sincronizados exitosamente (${copiedFiles.length} archivos en ${workingDir})`);
   }
 
   try {
