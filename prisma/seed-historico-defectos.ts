@@ -217,7 +217,7 @@ async function main() {
     deptoMap.set('PESPUENTE', deptoMap.get('PESPUNTE') || 4);
     deptoMap.set('BORDADO', deptoMap.get('BORDADO Y LASER') || deptoMap.get('BORDADO_Y_LASER') || 3);
     deptoMap.set('BORDADO Y LASER', deptoMap.get('BORDADO_Y_LASER') || deptoMap.get('BORDADO Y LASER') || 3);
-    deptoMap.set('ADORNO', deptoMap.get('PESPUNTE') || 4); // Adorno pertenece al área de Pespunte en el flujo
+    deptoMap.set('ADORNO', deptoMap.get('ADORNO') || 11);
     deptoMap.set('PRUEBA', deptoMap.get('CORTE') || 1);
 
     // Mapeo inequívoco del archivo origen a la terminal/departamento de auditoría
@@ -229,7 +229,7 @@ async function main() {
       ['Defectos_Montado.txt', deptoMap.get('MONTADO') || 5],
       ['Defectos_Acabado.txt', deptoMap.get('ACABADO') || 6],
       ['Defectos_Avios.txt', deptoMap.get('AVIOS') || 7],
-      ['Defectos_Adorno.txt', deptoMap.get('ADORNO') || deptoMap.get('PESPUNTE') || 4],
+      ['Defectos_Adorno.txt', deptoMap.get('ADORNO') || 11],
     ]);
 
     const defaultDeptoId = deptoMap.get('CORTE') || departamentosDB[0].id;

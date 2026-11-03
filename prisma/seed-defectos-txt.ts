@@ -92,7 +92,7 @@ async function importarCatalogoDefectos() {
     'MONTADO': deptoMapByCodigo.get('MONTADO') || 5,
     'AVIOS': deptoMapByCodigo.get('AVIOS') || 7,
     'ACABADO': deptoMapByCodigo.get('ACABADO') || 6,
-    'ADORNO': deptoMapByCodigo.get('ADORNO') || 4,
+    'ADORNO': deptoMapByCodigo.get('ADORNO') || 11,
   };
 
   // Definición de las etapas a evaluar (omitiendo Kit Complementos)
@@ -104,7 +104,7 @@ async function importarCatalogoDefectos() {
     { colIdx: 11, deptoId: deptoMapByCodigo.get('MONTADO') || 5, nombre: 'Montado' },
     { colIdx: 12, deptoId: deptoMapByCodigo.get('AVIOS') || 7, nombre: 'Avios' },
     { colIdx: 13, deptoId: deptoMapByCodigo.get('ACABADO') || 6, nombre: 'Acabado' },
-    { colIdx: 14, deptoId: deptoMapByCodigo.get('ADORNO') || 4, nombre: 'Adorno' },
+    { colIdx: 14, deptoId: deptoMapByCodigo.get('ADORNO') || 11, nombre: 'Adorno' },
   ];
 
   // Si se pasa flag --clean o reinicio completo, limpiar relaciones previas para evitar inconsistencias
