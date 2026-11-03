@@ -25,17 +25,26 @@ import fs from 'fs';
  */
 
 async function importarCatalogoDefectos() {
-  const filePathPrimary = 'C:/Users/MBCPROEW10028/Downloads/DtaosBse/Catalogo_Def.txt';
-  const filePathFallback = 'H:/CALIDAD/App/Quality System/DataBase/Catalogo_Def.txt';
-  const filePath = fs.existsSync(filePathPrimary) ? filePathPrimary : filePathFallback;
+  // Posibles rutas ordenadas por prioridad (Servidor producción, desarrollo local, red local, o variable de entorno)
+  const candidatePaths = [
+    process.env.CATALOGO_DEFECTOS_PATH,
+    'C:/Servidor/Aplicaciones/Calidad-MBC/Documentacion/DtaosBse/Catalogo_Def.txt',
+    'C:/Users/MBCPROEW10028/Downloads/DtaosBse/Catalogo_Def.txt',
+    'H:/CALIDAD/App/Quality System/DataBase/Catalogo_Def.txt',
+  ].filter((p): p is string => Boolean(p));
+
+  const filePath = candidatePaths.find(p => fs.existsSync(p));
 
   console.log('=================================================================');
-  console.log('Iniciando importación de Defectos desde:');
-  console.log(filePath);
+  console.log('Iniciando importación de Defectos');
+  console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
+  console.log('Ruta seleccionada:', filePath || 'NINGUNA ENCONTRADA');
   console.log('=================================================================');
 
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`No se encontró el archivo en la ruta: ${filePath}`);
+  if (!filePath || !fs.existsSync(filePath)) {
+    throw new Error(
+      `No se encontró el archivo Catalogo_Def.txt en ninguna de las rutas esperadas:\n${candidatePaths.map(p => ` - ${p}`).join('\n')}`
+    );
   }
 
   // 1. Obtener departamentos existentes en base de datos

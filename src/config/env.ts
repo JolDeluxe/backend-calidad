@@ -32,6 +32,10 @@ const envSchema = z
     RATE_LIMIT_MAX: z.coerce.number().default(10000),
 
     JWT_SECRET: z.string().min(32, "JWT_SECRET debe tener al menos 32 caracteres"),
+
+    // Rutas opcionales para archivos de catálogo e histórico
+    CATALOGO_DEFECTOS_PATH: z.string().optional(),
+    HISTORICO_DEFECTOS_DIR: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     // Validaciones estrictas exclusivas para producción

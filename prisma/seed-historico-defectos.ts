@@ -57,7 +57,23 @@ async function main() {
   console.log('INICIANDO IMPORTACIÓN DE HISTÓRICO DE DEFECTOS Y AUDITORÍAS (CALIDAD MBC)');
   console.log('========================================================================\n');
 
-  const basePath = 'H:\\CALIDAD\\App\\Quality System\\DataBase';
+  const candidateDirs = [
+    process.env.HISTORICO_DEFECTOS_DIR,
+    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse',
+    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse',
+    'H:\\CALIDAD\\App\\Quality System\\DataBase',
+  ].filter((p): p is string => Boolean(p));
+
+  const basePath = candidateDirs.find(p => fs.existsSync(p));
+
+  console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
+  console.log('Directorio de datos seleccionado:', basePath || 'NINGUNO ENCONTRADO');
+
+  if (!basePath || !fs.existsSync(basePath)) {
+    throw new Error(
+      `No se encontró el directorio de datos históricos en ninguna de las rutas esperadas:\n${candidateDirs.map(p => ` - ${p}`).join('\n')}`
+    );
+  }
 
   const files = [
     // Archivos de defectos activos
