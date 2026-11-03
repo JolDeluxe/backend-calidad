@@ -57,16 +57,27 @@ async function main() {
   console.log('INICIANDO IMPORTACIÓN DE HISTÓRICO DE DEFECTOS Y AUDITORÍAS (CALIDAD MBC)');
   console.log('========================================================================\n');
 
-  // La única fuente de verdad para el histórico son los archivos vivos en la red H:\
-  // Se permite sobreescribir únicamente mediante la variable de entorno HISTORICO_DEFECTOS_DIR si fuera necesario.
-  const basePath = process.env.HISTORICO_DEFECTOS_DIR || 'H:\\CALIDAD\\App\\Quality System\\DataBase';
+  // Rutas directas a la base de datos real en red:
+  // 1. Variable de entorno HISTORICO_DEFECTOS_DIR si está configurada en .env
+  // 2. Ruta UNC directa al servidor de archivos (inmune a mapeos de letras en Windows)
+  // 3. Unidad mapeada H:\
+  const uncPath = '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase';
+  const drivePath = 'H:\\CALIDAD\\App\\Quality System\\DataBase';
+
+  const candidatePaths = [
+    process.env.HISTORICO_DEFECTOS_DIR,
+    uncPath,
+    drivePath,
+  ].filter((p): p is string => Boolean(p));
+
+  const basePath = candidatePaths.find(p => fs.existsSync(p));
 
   console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
-  console.log('Directorio de datos vivos (Red):', basePath);
+  console.log('Directorio de datos vivos (Red):', basePath || 'NINGUNO ENCONTRADO');
 
-  if (!fs.existsSync(basePath)) {
+  if (!basePath || !fs.existsSync(basePath)) {
     throw new Error(
-      `[ERROR CRÍTICO]: No se puede acceder a la base de datos real en la ruta de red:\n"${basePath}"\nVerifique que la unidad de red H:\\ esté montada y accesible en este equipo/servidor.`
+      `[ERROR CRÍTICO]: No se puede acceder a la base de datos real en red.\nSe intentaron las siguientes rutas:\n${candidatePaths.map(p => ` - ${p}`).join('\n')}\nVerifique la conexión al servidor de archivos "\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC".`
     );
   }
 
