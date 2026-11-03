@@ -24,28 +24,55 @@ import fs from 'fs';
  * Col 14: Adorno (Etapa operativa asignada a Depto 4 Pespunte)
  */
 
-async function importarCatalogoDefectos() {
-  // Posibles rutas ordenadas por prioridad (Servidor producción, desarrollo local, red local, o variable de entorno)
+async function resolverRutaCatalogo(): Promise<string> {
   const candidatePaths = [
     process.env.CATALOGO_DEFECTOS_PATH,
-    'C:/Servidor/Aplicaciones/Calidad-MBC/Documentacion/DtaosBse/Catalogo_Def.txt',
-    'C:/Users/MBCPROEW10028/Downloads/DtaosBse/Catalogo_Def.txt',
-    'H:/CALIDAD/App/Quality System/DataBase/Catalogo_Def.txt',
+    'H:\\CALIDAD\\App\\Quality System\\DataBase\\Catalogo_Def.txt',
+    '\\\\200.1.1.58\\usuariosmbc\\CALIDAD\\App\\Quality System\\DataBase\\Catalogo_Def.txt',
+    '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase\\Catalogo_Def.txt',
+    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse\\Catalogo_Def.txt',
+    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse\\Catalogo_Def.txt',
   ].filter((p): p is string => Boolean(p));
 
-  const filePath = candidatePaths.find(p => fs.existsSync(p));
+  for (const p of candidatePaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const stat = fs.statSync(p);
+        if (stat.size > 0) {
+          console.log(`✓ Archivo de catálogo válido encontrado en: ${p} (${stat.size.toLocaleString()} bytes)`);
+          return p;
+        } else {
+          console.warn(`⚠️ Ruta descartada (archivo vacío 0 bytes): ${p}`);
+        }
+      } else {
+        // En rutas UNC o red en Windows, verificar si robocopy o copy pueden leerlo a temp
+        if (p.startsWith('\\\\')) {
+          const tempFile = path.join(process.env.TEMP || 'C:\\Windows\\Temp', `test_cat_${Date.now()}.txt`);
+          const robo = Bun.spawnSync(['robocopy', path.dirname(p), path.dirname(tempFile), path.basename(p), '/NP', '/NFL', '/NDL']);
+          if (fs.existsSync(tempFile) && fs.statSync(tempFile).size > 0) {
+            fs.rmSync(tempFile, { force: true });
+            return p;
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`⚠️ Ruta descartada por error de acceso: ${p} (${err.message})`);
+    }
+  }
 
+  throw new Error(
+    `[ERROR CRÍTICO]: No se encontró ningún archivo Catalogo_Def.txt con tamaño > 0 en las rutas evaluadas:\n${candidatePaths.map(p => ` - ${p}`).join('\n')}`
+  );
+}
+
+async function importarCatalogoDefectos() {
   console.log('=================================================================');
   console.log('Iniciando importación de Defectos');
   console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
-  console.log('Ruta seleccionada:', filePath || 'NINGUNA ENCONTRADA');
+  
+  const filePath = await resolverRutaCatalogo();
+  console.log('Ruta seleccionada:', filePath);
   console.log('=================================================================');
-
-  if (!filePath || !fs.existsSync(filePath)) {
-    throw new Error(
-      `No se encontró el archivo Catalogo_Def.txt en ninguna de las rutas esperadas:\n${candidatePaths.map(p => ` - ${p}`).join('\n')}`
-    );
-  }
 
   // 1. Obtener departamentos existentes en base de datos
   const deptos = await prisma.departamento.findMany();
