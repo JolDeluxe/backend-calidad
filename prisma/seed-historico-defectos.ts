@@ -57,11 +57,16 @@ async function main() {
   console.log('INICIANDO IMPORTACIÓN DE HISTÓRICO DE DEFECTOS Y AUDITORÍAS (CALIDAD MBC)');
   console.log('========================================================================\n');
 
+  // Prioridad:
+  // 1. Variable de entorno HISTORICO_DEFECTOS_DIR si está definida en .env
+  // 2. Base de datos real en red (H:\CALIDAD\App\Quality System\DataBase)
+  // 3. Respaldo en servidor (C:\Servidor\Aplicaciones\Calidad-MBC\Documentacion\DtaosBse)
+  // 4. Copia local de desarrollo (Downloads)
   const candidateDirs = [
     process.env.HISTORICO_DEFECTOS_DIR,
+    'H:\\CALIDAD\\App\\Quality System\\DataBase',
     'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse',
     'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse',
-    'H:\\CALIDAD\\App\\Quality System\\DataBase',
   ].filter((p): p is string => Boolean(p));
 
   const basePath = candidateDirs.find(p => fs.existsSync(p));
