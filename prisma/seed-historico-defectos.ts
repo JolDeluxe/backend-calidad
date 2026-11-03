@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../src/config/database';
+import { parseCSVLine, extraerModelo } from '../src/modules/lotes/services/lotes-import.service';
 
 // Tipos auxiliares
 interface RawRow {
@@ -408,15 +409,79 @@ async function main() {
       renderProgressBar(Math.min(i + BATCH_SIZE, allRows.length), allRows.length, 'inspecciones_historicas_origen');
     }
 
-    // 5. Crear Lotes de producción (ProduccionLote) únicos
-    console.log('\n5. Consolidando y registrando lotes únicos de producción...');
-    const lotesMap = new Map<string, { lista: string; modelo: string; descripcion: string; horma: string }>();
+    // 5. Cargar archivo maestro de lotes CSV (si existe) para poblar pares reales (Cantidad) y datos base
+    console.log('\n5. Consolidando y registrando lotes de producción con datos reales...');
+    const lotesCsvData = new Map<string, { listaLote: string; lista: string; lote: string; idProducto: string; modelo: string; cantidad: number; descripcion: string; cliente: string; horma: string }>();
+
+    const candidateCsvPaths = [
+      process.env.LOTES_CSV_PATH,
+      'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse\\Calidad Datos Base.csv',
+      'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse\\Calidad Datos Base.csv',
+      'H:\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
+      '\\\\200.1.1.58\\usuariosmbc\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
+      '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
+    ].filter((p): p is string => Boolean(p));
+
+    let csvPathEncontrado: string | null = null;
+    for (const p of candidateCsvPaths) {
+      if (fs.existsSync(p) && fs.statSync(p).size > 0) {
+        csvPathEncontrado = p;
+        break;
+      }
+    }
+
+    if (csvPathEncontrado) {
+      console.log(`  -> Archivo maestro de lotes encontrado en: ${csvPathEncontrado}`);
+      const csvContent = fs.readFileSync(csvPathEncontrado, 'utf-8');
+      const csvLines = csvContent.trim().split(/\r?\n/);
+      for (let i = 1; i < csvLines.length; i++) {
+        const cols = parseCSVLine(csvLines[i]).map(c => c.trim());
+        const listaLote = cols[0] || '';
+        const lista = cols[1] || '';
+        const lote = cols[2] || '';
+        const idProducto = cols[3] || '';
+        const cantidad = parseFloat(cols[4]) || 0;
+        const descripcion = cols[5] || '';
+        const cliente = cols[6] || 'CUADRA PRODUCCIÓN';
+        const horma = cols[7] || '';
+
+        if (!lote) continue;
+        const modeloExt = extraerModelo(idProducto).modelo || (idProducto.length >= 6 ? idProducto.substring(0, 6) : idProducto);
+
+        lotesCsvData.set(lote, {
+          listaLote,
+          lista,
+          lote,
+          idProducto,
+          modelo: modeloExt || 'N/A',
+          cantidad,
+          descripcion,
+          cliente,
+          horma,
+        });
+      }
+      console.log(`  -> Lotes maestros leídos con pares (cantidad): ${lotesCsvData.size.toLocaleString()}`);
+    }
+
+    // Unir lotes de archivos históricos con el maestro CSV
+    const lotesMap = new Map<string, { listaLote: string; lista: string; idProducto: string; modelo: string; cantidad: number; descripcion: string; cliente: string; horma: string }>();
+
+    // Primero los del CSV con sus pares reales
+    for (const [lote, data] of lotesCsvData.entries()) {
+      lotesMap.set(lote, data);
+    }
+
+    // Luego los del histórico TXT (si no estaban en CSV, se agregan con los datos de Access)
     for (const r of allRows) {
       if (r.lote && !lotesMap.has(r.lote)) {
         lotesMap.set(r.lote, {
+          listaLote: `${r.lista}-${r.lote}`,
           lista: r.lista || 'N/A',
+          idProducto: r.modelo || 'N/A',
           modelo: r.modelo || 'N/A',
+          cantidad: 0,
           descripcion: r.descripcion || '',
+          cliente: 'CUADRA PRODUCCIÓN',
           horma: r.horma || '',
         });
       }
@@ -434,13 +499,13 @@ async function main() {
       await prisma.produccionLote.createMany({
         data: chunk.map(([lote, data]) => ({
           lote,
-          listaLote: `${data.lista}-${lote}`,
-          lista: data.lista,
-          idProducto: data.modelo,
-          modelo: data.modelo,
+          listaLote: data.listaLote ? data.listaLote.substring(0, 100) : `${data.lista}-${lote}`,
+          lista: data.lista ? data.lista.substring(0, 50) : 'N/A',
+          idProducto: data.idProducto ? data.idProducto.substring(0, 100) : data.modelo,
+          modelo: data.modelo ? data.modelo.substring(0, 50) : 'N/A',
           descripcion: data.descripcion ? data.descripcion.substring(0, 255) : '',
-          cliente: 'CUADRA PRODUCCIÓN',
-          cantidad: 0,
+          cliente: data.cliente ? data.cliente.substring(0, 200) : 'CUADRA PRODUCCIÓN',
+          cantidad: data.cantidad,
           horma: data.horma ? data.horma.substring(0, 60) : '',
           creadoPor: superAdminId,
         })),
