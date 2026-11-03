@@ -57,26 +57,16 @@ async function main() {
   console.log('INICIANDO IMPORTACIÓN DE HISTÓRICO DE DEFECTOS Y AUDITORÍAS (CALIDAD MBC)');
   console.log('========================================================================\n');
 
-  // Prioridad:
-  // 1. Variable de entorno HISTORICO_DEFECTOS_DIR si está definida en .env
-  // 2. Base de datos real en red (H:\CALIDAD\App\Quality System\DataBase)
-  // 3. Respaldo en servidor (C:\Servidor\Aplicaciones\Calidad-MBC\Documentacion\DtaosBse)
-  // 4. Copia local de desarrollo (Downloads)
-  const candidateDirs = [
-    process.env.HISTORICO_DEFECTOS_DIR,
-    'H:\\CALIDAD\\App\\Quality System\\DataBase',
-    'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse',
-    'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse',
-  ].filter((p): p is string => Boolean(p));
-
-  const basePath = candidateDirs.find(p => fs.existsSync(p));
+  // La única fuente de verdad para el histórico son los archivos vivos en la red H:\
+  // Se permite sobreescribir únicamente mediante la variable de entorno HISTORICO_DEFECTOS_DIR si fuera necesario.
+  const basePath = process.env.HISTORICO_DEFECTOS_DIR || 'H:\\CALIDAD\\App\\Quality System\\DataBase';
 
   console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
-  console.log('Directorio de datos seleccionado:', basePath || 'NINGUNO ENCONTRADO');
+  console.log('Directorio de datos vivos (Red):', basePath);
 
-  if (!basePath || !fs.existsSync(basePath)) {
+  if (!fs.existsSync(basePath)) {
     throw new Error(
-      `No se encontró el directorio de datos históricos en ninguna de las rutas esperadas:\n${candidateDirs.map(p => ` - ${p}`).join('\n')}`
+      `[ERROR CRÍTICO]: No se puede acceder a la base de datos real en la ruta de red:\n"${basePath}"\nVerifique que la unidad de red H:\\ esté montada y accesible en este equipo/servidor.`
     );
   }
 
