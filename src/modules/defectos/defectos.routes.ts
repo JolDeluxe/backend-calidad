@@ -16,6 +16,9 @@ import {
   getGruposCodificacionQuerySchema,
   previewLoteDefectosSchema,
   crearLoteDefectosSchema,
+  upsertReglaVisibilidadSchema,
+  updateMatrizDepartamentoSchema,
+  resolverVisibilidadQuerySchema,
 } from "./defectos.schema";
 
 const router = Router();
@@ -34,6 +37,13 @@ router.get(
   (req, res, next) => defectosController.validarDefectoCaptura(req, res, next)
 );
 
+router.get(
+  "/matriz-visibilidad",
+  authenticateOrTerminal,
+  requireRole(["SUPER_ADMIN", "ADMIN", "VISUALIZADOR", "INSPECTOR"]),
+  (req, res, next) => defectosController.getMatrizVisibilidad(req, res, next)
+);
+
 router.use(authenticate);
 
 router.get(
@@ -45,6 +55,32 @@ router.get(
   "/grupos-codificacion",
   validate({ query: getGruposCodificacionQuerySchema }),
   (req, res, next) => defectosController.getGruposCodificacion(req, res, next)
+);
+
+router.get(
+  "/matriz-visibilidad/:departamentoOrigenId",
+  requireRole(["SUPER_ADMIN", "ADMIN", "VISUALIZADOR"]),
+  (req, res, next) => defectosController.getMatrizVisibilidadPorDepartamento(req, res, next)
+);
+
+router.post(
+  "/matriz-visibilidad/regla",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ body: upsertReglaVisibilidadSchema }),
+  (req, res, next) => defectosController.upsertReglaVisibilidad(req, res, next)
+);
+
+router.put(
+  "/matriz-visibilidad/departamento",
+  requireRole(["SUPER_ADMIN", "ADMIN"]),
+  validate({ body: updateMatrizDepartamentoSchema }),
+  (req, res, next) => defectosController.actualizarMatrizDepartamento(req, res, next)
+);
+
+router.get(
+  "/resolver-visibilidad",
+  validate({ query: resolverVisibilidadQuerySchema }),
+  (req, res, next) => defectosController.resolverVisibilidad(req, res, next)
 );
 
 router.post(

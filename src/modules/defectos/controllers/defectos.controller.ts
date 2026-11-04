@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { defectosService } from "../services/defectos.service";
 import { codificacionDefectosService } from "../services/codificacion-defectos.service";
+import { matrizVisibilidadDefectosService } from "../services/matriz-visibilidad.service";
+import { auditService } from "../../audit/services/audit.service";
 import { sendSuccess, sendCreated } from "../../../utils/response";
 import { UnauthorizedError } from "../../../utils/errors";
 
@@ -71,6 +73,96 @@ export class DefectosController {
       const { lineaId } = req.query as { lineaId?: number | string };
       const grupos = await codificacionDefectosService.getGrupos(lineaId ? Number(lineaId) : undefined);
       sendSuccess(res, grupos, "Grupos de codificación obtenidos exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMatrizVisibilidad(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await matrizVisibilidadDefectosService.getMatrizCompleta();
+      sendSuccess(res, data, "Matriz de visibilidad de defectos obtenida exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMatrizVisibilidadPorDepartamento(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await matrizVisibilidadDefectosService.getMatrizPorDepartamento(
+        Number(req.params.departamentoOrigenId)
+      );
+      sendSuccess(res, data, "Matriz de visibilidad del departamento obtenida exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async upsertReglaVisibilidad(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError("Usuario no autenticado");
+      const { departamentoOrigenId, departamentoDestinoId, permitido } = req.body;
+      const { regla, anterior, origen, destino } = await matrizVisibilidadDefectosService.upsertRegla(
+        Number(departamentoOrigenId),
+        Number(departamentoDestinoId),
+        Boolean(permitido),
+        req.user.usuarioId
+      );
+
+      await auditService.registrarEvento({
+        accion: "MATRIZ_VISIBILIDAD_MODIFICADA",
+        modulo: "CATALOGOS",
+        entidad: "DepartamentoVisibilidadDefecto",
+        entidadId: `${origen.id}-${destino.id}`,
+        descripcion: `Regla de visibilidad actualizada: Defectos de ${origen.nombre} en ${destino.nombre} -> ${permitido ? "PERMITIDO" : "BLOQUEADO"}`,
+        valoresAnteriores: anterior as any,
+        valoresPosteriores: regla as any,
+        contexto: { usuarioId: req.user.usuarioId },
+      });
+
+      sendSuccess(res, regla, "Regla de visibilidad guardada exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async actualizarMatrizDepartamento(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError("Usuario no autenticado");
+      const { departamentoOrigenId, destinos } = req.body;
+      const resultado = await matrizVisibilidadDefectosService.actualizarMatrizDepartamento(
+        Number(departamentoOrigenId),
+        destinos,
+        req.user.usuarioId
+      );
+
+      await auditService.registrarEvento({
+        accion: "MATRIZ_VISIBILIDAD_COMPLETA_MODIFICADA",
+        modulo: "CATALOGOS",
+        entidad: "DepartamentoVisibilidadDefecto",
+        entidadId: String(departamentoOrigenId),
+        descripcion: `Matriz de visibilidad para departamento ID ${departamentoOrigenId} actualizada (${destinos.length} reglas)`,
+        valoresPosteriores: { departamentoOrigenId, reglas: destinos },
+        contexto: { usuarioId: req.user.usuarioId },
+      });
+
+      sendSuccess(res, resultado, "Matriz de visibilidad actualizada exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resolverVisibilidad(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { defectoId, departamentoDeteccionId } = req.query as unknown as {
+        defectoId: number;
+        departamentoDeteccionId: number;
+      };
+      const resultado = await matrizVisibilidadDefectosService.resolverVisibilidad(
+        Number(defectoId),
+        Number(departamentoDeteccionId)
+      );
+      sendSuccess(res, resultado, "Visibilidad resuelta exitosamente");
     } catch (error) {
       next(error);
     }

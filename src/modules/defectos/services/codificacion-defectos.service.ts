@@ -2,6 +2,7 @@ import { prisma } from "../../../config/database";
 import { BadRequestError, ConflictError } from "../../../utils/errors";
 import { auditService } from "../../audit/services/audit.service";
 import type { Prisma } from "@prisma/client";
+import { matrizVisibilidadDefectosService } from "./matriz-visibilidad.service";
 import {
   CONSECUTIVO_MAX,
   CONSECUTIVO_AGOTADO,
@@ -370,22 +371,13 @@ export class CodificacionDefectosService {
             ? deptosAsociarIds
             : null;
 
-          if (permitidosEspecificos) {
+          const tieneExcepcionesExplicitas = input.etapasPermitidasIds && input.etapasPermitidasIds.length > 0;
+          if (tieneExcepcionesExplicitas) {
+            const permitidosEspecificos = new Set(input.etapasPermitidasIds);
+            permitidosEspecificos.add(input.departamentoId);
             deptosLinea.forEach((d) => {
               mapaPermitidos.set(d.departamentoId, permitidosEspecificos.has(d.departamentoId));
             });
-          } else {
-            const defectoReferencia = await tx.defecto.findFirst({
-              where: { departamentoId: input.departamentoId, eliminadoEn: null },
-              include: { etapas: true },
-              orderBy: { clave: "asc" },
-            });
-
-            if (defectoReferencia && defectoReferencia.etapas.length > 0) {
-              defectoReferencia.etapas.forEach((e) => mapaPermitidos.set(e.departamentoId, e.permitido));
-            } else {
-              deptosLinea.forEach((d) => mapaPermitidos.set(d.departamentoId, d.departamentoId === input.departamentoId));
-            }
           }
 
           for (let i = 0; i < input.filas.length; i++) {
@@ -414,16 +406,18 @@ export class CodificacionDefectosService {
               });
             }
 
-            // Matriz de etapas de detección (palomita / tachita)
-            for (const [depId, permitido] of mapaPermitidos.entries()) {
-              await tx.defectoEtapa.create({
-                data: {
-                  defectoId: nuevo.id,
-                  departamentoId: depId,
-                  permitido,
-                  creadoPor: usuarioId,
-                },
-              });
+            // Exclusivamente si el usuario configuró etapasPermitidasIds explícitas se crean excepciones
+            if (tieneExcepcionesExplicitas) {
+              for (const [depId, permitido] of mapaPermitidos.entries()) {
+                await tx.defectoEtapa.create({
+                  data: {
+                    defectoId: nuevo.id,
+                    departamentoId: depId,
+                    permitido,
+                    creadoPor: usuarioId,
+                  },
+                });
+              }
             }
 
             await auditService.registrarEvento(

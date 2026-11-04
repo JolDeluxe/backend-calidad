@@ -80,6 +80,8 @@ model Departamento {
   inspeccionesRealizadas  InspeccionCabecera[]  @relation("InspeccionDeptoAuditoria")
   defectosResponsable     InspeccionDetalle[]   @relation("DetalleDeptoResponsable")
   gruposCodificacion      GrupoCodificacionDefecto[]
+  matricesOrigenVisibilidad  DepartamentoVisibilidadDefecto[] @relation("MatrizOrigenDepto")
+  matricesDestinoVisibilidad DepartamentoVisibilidadDefecto[] @relation("MatrizDestinoDepto")
 
   @@index([categoriaDepartamentoId])
   @@index([estado])
@@ -490,6 +492,28 @@ model DefectoEtapa {
   @@index([departamentoId])
   @@index([permitido])
   @@map("defectos_etapas")
+}
+
+/// Matriz Maestra centralizada de visibilidad y detección de defectos por departamento.
+/// Define si los defectos pertenecientes a departamentoOrigen pueden ser detectados/evaluados en departamentoDestino.
+model DepartamentoVisibilidadDefecto {
+  id                    Int          @id @default(autoincrement())
+  departamentoOrigenId  Int          @map("departamento_origen_id") // Departamento propietario del defecto
+  departamentoDestinoId Int          @map("departamento_destino_id") // Departamento donde se detecta / inspecciona
+  permitido             Boolean      @default(true)
+  creadoPor             Int?         @map("creado_por")
+  fechaCreacion         DateTime     @default(now()) @map("fecha_creacion")
+  actualizadoPor        Int?         @map("actualizado_por")
+  fechaActualizacion    DateTime     @updatedAt @map("fecha_actualizacion")
+
+  departamentoOrigen    Departamento @relation("MatrizOrigenDepto", fields: [departamentoOrigenId], references: [id], onDelete: Restrict)
+  departamentoDestino   Departamento @relation("MatrizDestinoDepto", fields: [departamentoDestinoId], references: [id], onDelete: Restrict)
+
+  @@unique([departamentoOrigenId, departamentoDestinoId], name: "unique_depto_origen_destino")
+  @@index([departamentoOrigenId])
+  @@index([departamentoDestinoId])
+  @@index([permitido])
+  @@map("departamentos_visibilidad_defectos")
 }
 
 model DefectoDepartamento {

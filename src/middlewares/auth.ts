@@ -54,7 +54,12 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
 
 export const requireRole = (allowedRoles: string[]) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
+    // Si la petición proviene de una terminal física autorizada (sin token de usuario directo),
+    // se le permite el acceso como estación de trabajo
     if (!req.user) {
+      if (req.terminal) {
+        return next();
+      }
       throw new UnauthorizedError("Usuario no autenticado");
     }
 

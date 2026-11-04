@@ -131,3 +131,24 @@ export const syncDefectoDepartamentosSchema = z.object({
 export const toggleDefectoDepartamentoSchema = z.object({
   activo: z.boolean({ required_error: "El campo activo es obligatorio" }),
 });
+
+export const upsertReglaVisibilidadSchema = z.object({
+  departamentoOrigenId: z.number().int().positive("El departamento origen es obligatorio"),
+  departamentoDestinoId: z.number().int().positive("El departamento destino es obligatorio"),
+  permitido: z.boolean({ required_error: "El campo permitido es obligatorio" }),
+});
+
+export const updateMatrizDepartamentoSchema = z.object({
+  departamentoOrigenId: z.number().int().positive("El departamento origen es obligatorio"),
+  destinos: z.array(
+    z.object({
+      departamentoDestinoId: z.number().int().positive("El departamento destino debe ser válido"),
+      permitido: z.boolean({ required_error: "El estado permitido es obligatorio" }),
+    })
+  ).min(1, "Debe enviar al menos una regla de destino"),
+});
+
+export const resolverVisibilidadQuerySchema = z.object({
+  defectoId: z.string().regex(/^\d+$/).transform(Number),
+  departamentoDeteccionId: z.string().regex(/^\d+$/).transform(Number),
+});

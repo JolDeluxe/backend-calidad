@@ -3,6 +3,7 @@ import { NotFoundError, ConflictError, BadRequestError } from "../../../utils/er
 import { auditService } from "../../audit/services/audit.service";
 import type { Prisma } from "@prisma/client";
 import { codificacionDefectosService } from "./codificacion-defectos.service";
+import { matrizVisibilidadDefectosService } from "./matriz-visibilidad.service";
 
 export interface GetDefectosFiltros {
   clave?: number;
@@ -68,12 +69,11 @@ export class DefectosService {
     }
 
     if (filtros.etapaId) {
-      where.etapas = {
-        some: {
-          departamentoId: filtros.etapaId,
-          permitido: true,
-        },
-      };
+      // Resolución unificada: se utiliza el resolver centralizado de la matriz de visibilidad por departamento
+      const whereVisibilidad = await matrizVisibilidadDefectosService.construirWhereFiltroDefectosPorDepartamentoDeteccion(
+        filtros.etapaId
+      );
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), whereVisibilidad];
     } else if (filtros.lineasIds && filtros.lineasIds.length > 0) {
       where.OR = [
         {
@@ -290,7 +290,15 @@ export class DefectosService {
     }
 
     const etapaRelacion = defecto.etapas[0];
-    if (!etapaRelacion || !etapaRelacion.permitido) {
+    const excepcion = etapaRelacion?.permitido;
+    const resVis = await matrizVisibilidadDefectosService.resolverVisibilidadConEntidades(
+      defecto.departamentoId,
+      etapaId,
+      excepcion,
+      defecto.id
+    );
+
+    if (!resVis.permitido) {
       return {
         estado: "NO_PERMITIDO" as const,
         mensaje: "Defecto no permitido",
@@ -402,13 +410,10 @@ export class DefectosService {
       }
 
       // Sincronizar matriz de etapas de detección (DefectoEtapa):
-      // Si se indicaron etapasPermitidasIds explícitas se usan; si no, por defecto se inicializan
-      // con los departamentos evaluadores (departamentosIds) o todos los de la línea de producción.
-      const etapasIds = (data.etapasPermitidasIds && data.etapasPermitidasIds.length > 0)
-        ? data.etapasPermitidasIds
-        : (data.departamentosIds && data.departamentosIds.length > 0)
-        ? data.departamentosIds
-        : [];
+      // 1. Si se indicaron etapasPermitidasIds explícitas desde la interfaz, se respetan como excepciones individuales.
+      // 2. Si no, se consulta la Matriz Maestra de Visibilidad (`DepartamentoVisibilidadDefecto`) del departamento propietario.
+      // 3. Fallback: departamentos evaluadores (departamentosIds) o todos los de la línea.
+      const mapaPermitidos = new Map<number, boolean>();
 
       // Obtener todos los departamentos activos de la línea para registrar la matriz completa
       const asignacionesLinea = lineaAsociadaId
@@ -421,19 +426,25 @@ export class DefectosService {
             select: { id: true },
           }).then((ds) => ds.map((d) => ({ departamentoId: d.id })));
 
-      const permitidosSet = new Set(etapasIds.length > 0 ? etapasIds : asignacionesLinea.map((a) => a.departamentoId));
-      // El departamento propietario SIEMPRE tiene permitido: true en su propia etapa
-      permitidosSet.add(deptoPropietarioId);
+      // GOBERNANZA DE HERENCIA DINÁMICA:
+      // Si el usuario especificó etapasPermitidasIds explícitas (excepciones individuales), se crean solo esas excepciones.
+      // Si NO se enviaron etapasPermitidasIds explícitas, NO se crean filas estáticas en DefectoEtapa:
+      // el defecto hereda en tiempo real las reglas de DepartamentoVisibilidadDefecto (Matriz Maestra).
+      if (data.etapasPermitidasIds && data.etapasPermitidasIds.length > 0) {
+        const permitidosSet = new Set(data.etapasPermitidasIds);
+        permitidosSet.add(deptoPropietarioId);
 
-      for (const a of asignacionesLinea) {
-        await tx.defectoEtapa.create({
-          data: {
-            defectoId: nuevo.id,
-            departamentoId: a.departamentoId,
-            permitido: permitidosSet.has(a.departamentoId),
-            creadoPor: usuarioId,
-          },
-        });
+        for (const a of asignacionesLinea) {
+          const esPermitido = permitidosSet.has(a.departamentoId);
+          await tx.defectoEtapa.create({
+            data: {
+              defectoId: nuevo.id,
+              departamentoId: a.departamentoId,
+              permitido: esPermitido,
+              creadoPor: usuarioId,
+            },
+          });
+        }
       }
 
       await auditService.registrarEvento({
@@ -465,6 +476,8 @@ export class DefectosService {
     }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const cambioPropietario = data.departamentoId !== undefined && data.departamentoId !== actual.departamentoId;
+
       const actualizado = await tx.defecto.update({
         where: { id },
         data: {
@@ -474,6 +487,32 @@ export class DefectosService {
           actualizadoPor: usuarioId,
         },
       });
+
+      // Regla 3: Si un defecto cambia de departamento propietario, recalcular los permisos heredados de la matriz
+      if (cambioPropietario && data.departamentoId) {
+        const nuevoPropietarioId = data.departamentoId;
+        const plantillaNueva = await matrizVisibilidadDefectosService.obtenerPlantillaEtapasParaPropietario(nuevoPropietarioId);
+        if (plantillaNueva.size > 0) {
+          for (const [destinoId, permitido] of plantillaNueva.entries()) {
+            await tx.defectoEtapa.upsert({
+              where: {
+                unique_defecto_etapa: { defectoId: id, departamentoId: destinoId },
+              },
+              create: {
+                defectoId: id,
+                departamentoId: destinoId,
+                permitido: destinoId === nuevoPropietarioId ? true : permitido,
+                creadoPor: usuarioId,
+                actualizadoPor: usuarioId,
+              },
+              update: {
+                permitido: destinoId === nuevoPropietarioId ? true : permitido,
+                actualizadoPor: usuarioId,
+              },
+            });
+          }
+        }
+      }
 
       await auditService.registrarEvento({
         accion: "DEFECTO_ACTUALIZADO",

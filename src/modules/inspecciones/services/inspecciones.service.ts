@@ -4,6 +4,7 @@ import { auditService } from "../../audit/services/audit.service";
 import { offlineAuthService } from "../../auth/services/offline-auth.service";
 import { permissionsService } from "../../auth/services/permissions.service";
 import { inspeccionesLegacyService, type LegacyWriteResult } from "./inspecciones-legacy.service";
+import { matrizVisibilidadDefectosService } from "../../defectos/services/matriz-visibilidad.service";
 
 export interface ItemDefectoInput {
   defectoId: number;
@@ -661,7 +662,7 @@ export class InspeccionesService {
       );
     }
 
-    // Validar matriz de etapas de detección: verificar si cada defecto está permitido en deptoAuditoriaId
+    // Validar matriz de visibilidad / etapas de detección: verificar si cada defecto está permitido en deptoAuditoriaId
     const deptoAuditoria = await prisma.departamento.findUnique({
       where: { id: deptoAuditoriaId },
       select: { id: true, codigo: true, nombre: true },
@@ -670,9 +671,16 @@ export class InspeccionesService {
     const defectosMap = new Map(defectosEncontrados.map((d) => [d.id, d]));
     for (const defId of defectosIds) {
       const def = defectosMap.get(defId)!;
-      // Whitelist estricta: debe existir relación explícita en la matriz y tener permitido = true
-      const etapaPermiso = def.etapas[0];
-      if (!etapaPermiso || !etapaPermiso.permitido) {
+      // Resolución unificada: excepción individual > matriz maestra departamento > compatibilidad
+      const excepcion = def.etapas[0]?.permitido;
+      const resVisibilidad = await matrizVisibilidadDefectosService.resolverVisibilidadConEntidades(
+        def.departamentoId,
+        deptoAuditoriaId,
+        excepcion,
+        def.id
+      );
+
+      if (!resVisibilidad.permitido) {
         throw new BadRequestError(
           `El defecto ${def.clave} ('${def.defecto}') no está permitido para inspección en la etapa de ${deptoAuditoria?.nombre || "este departamento"}.`
         );
@@ -1117,14 +1125,58 @@ export class InspeccionesService {
             codigoHttp: 422,
           });
         } else if (err instanceof BadRequestError || err instanceof NotFoundError || err instanceof ForbiddenError || err instanceof UnauthorizedError) {
-          resultados.push({
-            idLocalCliente: item.idLocalCliente,
-            inspectorId: item.inspectorId,
-            estado: "RECHAZADA",
-            legacySincronizado: false,
-            mensaje: err.message,
-            codigoHttp: err.statusCode || 400,
-          });
+          // Si el rechazo se debe a una regla de visibilidad de defecto cambiada mientras estaba offline,
+          // no descartar destructivamente el registro: marcarlo para revisión de auditoría
+          const esConflictoVisibilidad =
+            err instanceof BadRequestError &&
+            typeof err.message === "string" &&
+            err.message.includes("no está permitido para inspección en la etapa");
+
+          if (esConflictoVisibilidad) {
+            await auditService.registrarEvento({
+              accion: "INSPECCION_OFFLINE_VISIBILIDAD_ALTERADA_REVISION",
+              modulo: "SINCRONIZACION_OFFLINE",
+              entidad: "cola_inspecciones",
+              entidadId: item.idLocalCliente,
+              descripcion: `Captura offline ${item.idLocalCliente} contiene defecto con permiso alterado en servidor: ${err.message}`,
+              motivo: err.message,
+              valoresPosteriores: {
+                idLocalCliente: item.idLocalCliente,
+                lote: item.payload.lote,
+                inspectorId: item.inspectorId,
+                detalles: item.payload.detalles,
+              },
+              contexto: {
+                usuarioId: item.inspectorId,
+                departamentoId: terminal.departamentoId,
+                terminalId: terminal.id,
+                ipOrigen: reqInfo?.ip,
+                agenteUsuario: reqInfo?.userAgent,
+                metodoHttp: reqInfo?.method,
+                rutaHttp: reqInfo?.url,
+              },
+            });
+
+            resultados.push({
+              idLocalCliente: item.idLocalCliente,
+              inspectorId: item.inspectorId,
+              estado: "REQUIERE_REVISION",
+              legacySincronizado: false,
+              requiereRevision: true,
+              motivoRevision: `Conflicto de visibilidad de defecto: ${err.message}`,
+              mensaje: `${err.message} Captura conservada para revisión de auditoría (el permiso cambió en el servidor mientras la terminal estaba offline).`,
+              codigoHttp: 422,
+            });
+          } else {
+            resultados.push({
+              idLocalCliente: item.idLocalCliente,
+              inspectorId: item.inspectorId,
+              estado: "RECHAZADA",
+              legacySincronizado: false,
+              mensaje: err.message,
+              codigoHttp: err.statusCode || 400,
+            });
+          }
         } else {
           resultados.push({
             idLocalCliente: item.idLocalCliente,
