@@ -44,6 +44,7 @@ export const validarDefectoCapturaQuerySchema = z.object({
 });
 
 export const createDefectoSchema = z.object({
+  clave: z.number().int().positive("La clave debe ser un número entero positivo").optional(),
   defecto: z
     .string()
     .min(1, "La descripción del defecto es obligatoria")

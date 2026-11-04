@@ -319,6 +319,7 @@ export class DefectosService {
 
   async createDefecto(
     data: {
+      clave?: number;
       defecto: string;
       clasificacion: "CRITICO" | "MAYOR" | "MENOR";
       departamentoId: number;
@@ -343,18 +344,42 @@ export class DefectosService {
       throw new BadRequestError("El departamento propietario especificado no existe o está inactivo");
     }
 
-    // La clave se asigna según el grupo de codificación (línea + departamento propietario).
-    const grupo = await codificacionDefectosService.resolverGrupo(data.lineaId, data.departamentoId);
-
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const asignacion = await codificacionDefectosService.asignarClaves(tx, grupo.id, 1, usuarioId);
-      const clave = asignacion.claves[0];
+      let claveDefinitiva: number;
+      let lineaAsociadaId: number | undefined = data.lineaId;
+
+      if (data.clave !== undefined && data.clave > 0) {
+        // Validación manual de clave: comprobar que no exista en defectos (activos o eliminados)
+        const claveExistente = await tx.defecto.findUnique({
+          where: { clave: data.clave },
+          select: { id: true, clave: true, defecto: true },
+        });
+        if (claveExistente) {
+          throw new ConflictError(`Ya existe un defecto registrado con la clave #${data.clave} ('${claveExistente.defecto}')`);
+        }
+        claveDefinitiva = data.clave;
+
+        // Si no se pasó lineaId explícita, resolver la primera línea a la que pertenece el depto
+        if (!lineaAsociadaId) {
+          const dl = await tx.departamentoLinea.findFirst({
+            where: { departamentoId: data.departamentoId, activo: true, eliminadoEn: null },
+            select: { lineaId: true },
+          });
+          if (dl) lineaAsociadaId = dl.lineaId;
+        }
+      } else {
+        // Fallback automático si no se proporcionó clave manual
+        const grupo = await codificacionDefectosService.resolverGrupo(data.lineaId, data.departamentoId, tx);
+        const asignacion = await codificacionDefectosService.asignarClaves(tx, grupo.id, 1, usuarioId);
+        claveDefinitiva = asignacion.claves[0];
+        lineaAsociadaId = grupo.lineaId;
+      }
 
       const deptoPropietarioId = data.departamentoId;
 
       const nuevo = await tx.defecto.create({
         data: {
-          clave,
+          clave: claveDefinitiva,
           defecto: data.defecto.trim(),
           clasificacion: data.clasificacion,
           departamentoId: deptoPropietarioId,
@@ -386,10 +411,15 @@ export class DefectosService {
         : [];
 
       // Obtener todos los departamentos activos de la línea para registrar la matriz completa
-      const asignacionesLinea = await tx.departamentoLinea.findMany({
-        where: { lineaId: grupo.lineaId, activo: true, eliminadoEn: null },
-        select: { departamentoId: true },
-      });
+      const asignacionesLinea = lineaAsociadaId
+        ? await tx.departamentoLinea.findMany({
+            where: { lineaId: lineaAsociadaId, activo: true, eliminadoEn: null },
+            select: { departamentoId: true },
+          })
+        : await tx.departamento.findMany({
+            where: { estado: "ACTIVO", eliminadoEn: null },
+            select: { id: true },
+          }).then((ds) => ds.map((d) => ({ departamentoId: d.id })));
 
       const permitidosSet = new Set(etapasIds.length > 0 ? etapasIds : asignacionesLinea.map((a) => a.departamentoId));
       // El departamento propietario SIEMPRE tiene permitido: true en su propia etapa
