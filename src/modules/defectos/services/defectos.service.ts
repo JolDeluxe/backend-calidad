@@ -385,33 +385,25 @@ export class DefectosService {
         ? data.departamentosIds
         : [];
 
-      if (etapasIds.length > 0) {
-        for (const etapaDeptoId of etapasIds) {
-          await tx.defectoEtapa.create({
-            data: {
-              defectoId: nuevo.id,
-              departamentoId: etapaDeptoId,
-              permitido: true,
-              creadoPor: usuarioId,
-            },
-          });
-        }
-      } else {
-        // Si no se pasaron etapas ni departamentos específicos, habilitar todos los de su línea de producción
-        const asignacionesLinea = await tx.departamentoLinea.findMany({
-          where: { lineaId: grupo.lineaId, activo: true, eliminadoEn: null },
-          select: { departamentoId: true },
+      // Obtener todos los departamentos activos de la línea para registrar la matriz completa
+      const asignacionesLinea = await tx.departamentoLinea.findMany({
+        where: { lineaId: grupo.lineaId, activo: true, eliminadoEn: null },
+        select: { departamentoId: true },
+      });
+
+      const permitidosSet = new Set(etapasIds.length > 0 ? etapasIds : asignacionesLinea.map((a) => a.departamentoId));
+      // El departamento propietario SIEMPRE tiene permitido: true en su propia etapa
+      permitidosSet.add(deptoPropietarioId);
+
+      for (const a of asignacionesLinea) {
+        await tx.defectoEtapa.create({
+          data: {
+            defectoId: nuevo.id,
+            departamentoId: a.departamentoId,
+            permitido: permitidosSet.has(a.departamentoId),
+            creadoPor: usuarioId,
+          },
         });
-        for (const a of asignacionesLinea) {
-          await tx.defectoEtapa.create({
-            data: {
-              defectoId: nuevo.id,
-              departamentoId: a.departamentoId,
-              permitido: true,
-              creadoPor: usuarioId,
-            },
-          });
-        }
       }
 
       await auditService.registrarEvento({
