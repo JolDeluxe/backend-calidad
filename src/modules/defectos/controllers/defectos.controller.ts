@@ -47,6 +47,16 @@ export class DefectosController {
     }
   }
 
+  async validarDefectoCaptura(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { clave, etapaId } = req.query as unknown as { clave: number; etapaId: number };
+      const resultado = await defectosService.validarDefectoParaCaptura(clave, etapaId);
+      sendSuccess(res, resultado, resultado.mensaje);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getConteoLineas(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const conteos = await defectosService.getConteoLineas();

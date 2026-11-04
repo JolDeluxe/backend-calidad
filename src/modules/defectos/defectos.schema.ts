@@ -38,6 +38,11 @@ export const getDefectosQuerySchema = z.object({
   page: z.string().regex(/^\d+$/).transform(Number).optional(),
 });
 
+export const validarDefectoCapturaQuerySchema = z.object({
+  clave: z.string().regex(/^\d+$/, "La clave debe ser un número entero positivo").transform(Number),
+  etapaId: z.string().regex(/^\d+$/, "El ID de etapa debe ser un número entero positivo").transform(Number),
+});
+
 export const createDefectoSchema = z.object({
   defecto: z
     .string()

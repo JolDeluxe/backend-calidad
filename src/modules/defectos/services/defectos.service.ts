@@ -234,6 +234,89 @@ export class DefectosService {
     return defecto;
   }
 
+  /**
+   * Valida una clave de defecto para una etapa específica en la captura operativa.
+   * Distingue con precisión exacta:
+   * 1. 'INEXISTENTE': No existe ningún defecto registrado con esa clave.
+   * 2. 'INACTIVO': Existe el defecto pero está inactivo (activo = false) o eliminado lógicamente (eliminadoEn != null).
+   * 3. 'NO_PERMITIDO': Existe y está activo, pero no está autorizado para inspección en la etapa solicitada.
+   * 4. 'VALIDO': Existe, está activo y está autorizado en la etapa.
+   */
+  async validarDefectoParaCaptura(clave: number, etapaId: number) {
+    const defecto = await prisma.defecto.findFirst({
+      where: { clave },
+      include: {
+        departamento: {
+          select: { id: true, codigo: true, nombre: true },
+        },
+        etapas: {
+          where: { departamentoId: etapaId },
+          select: { id: true, departamentoId: true, permitido: true },
+        },
+        departamentos: {
+          where: { eliminadoEn: null, activo: true },
+          select: {
+            departamentoId: true,
+            departamento: {
+              select: {
+                id: true,
+                codigo: true,
+                nombre: true,
+                lineasAsociadas: {
+                  where: { activo: true, eliminadoEn: null },
+                  select: { lineaId: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!defecto) {
+      return {
+        estado: "INEXISTENTE" as const,
+        mensaje: "Defecto inexistente",
+        defecto: null,
+      };
+    }
+
+    if (!defecto.activo || defecto.eliminadoEn !== null) {
+      return {
+        estado: "INACTIVO" as const,
+        mensaje: "Defecto inactivo",
+        defecto: null,
+      };
+    }
+
+    const etapaRelacion = defecto.etapas[0];
+    if (!etapaRelacion || !etapaRelacion.permitido) {
+      return {
+        estado: "NO_PERMITIDO" as const,
+        mensaje: "Defecto no permitido",
+        defecto: null,
+      };
+    }
+
+    return {
+      estado: "VALIDO" as const,
+      mensaje: "Defecto válido",
+      defecto: {
+        id: defecto.id,
+        clave: defecto.clave,
+        defecto: defecto.defecto,
+        clasificacion: defecto.clasificacion,
+        departamentoId: defecto.departamentoId,
+        activo: defecto.activo,
+        creadoPor: defecto.creadoPor,
+        creadoEn: defecto.creadoEn.toISOString(),
+        departamento: defecto.departamento,
+        etapas: defecto.etapas,
+        departamentos: defecto.departamentos,
+      },
+    };
+  }
+
   async createDefecto(
     data: {
       defecto: string;

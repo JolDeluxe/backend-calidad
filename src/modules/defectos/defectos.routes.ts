@@ -5,6 +5,7 @@ import { validate } from "../../middlewares/validate";
 import {
   defectoIdParamSchema,
   getDefectosQuerySchema,
+  validarDefectoCapturaQuerySchema,
   createDefectoSchema,
   updateDefectoSchema,
   updateClaveDefectoSchema,
@@ -24,6 +25,13 @@ router.get(
   authenticateOrTerminal,
   validate({ query: getDefectosQuerySchema }),
   (req, res, next) => defectosController.getDefectos(req, res, next)
+);
+
+router.get(
+  "/validar-captura",
+  authenticateOrTerminal,
+  validate({ query: validarDefectoCapturaQuerySchema }),
+  (req, res, next) => defectosController.validarDefectoCaptura(req, res, next)
 );
 
 router.use(authenticate);
