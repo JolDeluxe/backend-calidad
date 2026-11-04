@@ -1,0 +1,2603 @@
+[
+  {
+    "num": 1,
+    "clave": 1101,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Cinta de refuerzo mal colocada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 2,
+    "clave": 1102,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Cortado en material incorrecto",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 3,
+    "clave": 1103,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Cortado en tamaño incorrecto",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 4,
+    "clave": 1104,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Diferencia de tono",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 5,
+    "clave": 1108,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Grabado de flor (Diferencia estética)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 6,
+    "clave": 1109,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Mal codificado por punto (mal claveado)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 7,
+    "clave": 1110,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Mal dividido",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 8,
+    "clave": 1112,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piel / exótico descalentado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 9,
+    "clave": 1113,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piel con falla zona \"A\"",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 10,
+    "clave": 1114,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piel con falla zona \"B y C\"",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 11,
+    "clave": 1116,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piezas atravesadas (sentido de corte incorrecto)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 12,
+    "clave": 1118,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piezas mal cortadas (mochos)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 13,
+    "clave": 1119,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Soltura de flor",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 14,
+    "clave": 1121,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Mal hermanado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 15,
+    "clave": 1122,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Forro con mala impresión (Mal foliado, Refoliado, Sin serigrafia, NOM 020 falta , Ilegible, Incorrecta)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 16,
+    "clave": 1123,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piel bofa",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 17,
+    "clave": 1124,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Piel dañada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 18,
+    "clave": 1125,
+    "departamentoCodigo": "CORTE",
+    "departamentoNombre": "CORTE",
+    "defecto": "Mal resuajado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 19,
+    "clave": 1201,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Aplicaciones de tubo descosidas",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 20,
+    "clave": 1202,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Bordo mal pespuntado / sin bordo",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 21,
+    "clave": 1203,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Estoperol de diferente tono",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 22,
+    "clave": 1204,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Piedra / estoperol /  cristales mal colocados",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 23,
+    "clave": 1206,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Latigos,aplicaciónes, barbas diferente tamaño",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 24,
+    "clave": 1207,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal apiezado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 25,
+    "clave": 1209,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal empalmado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 26,
+    "clave": 1210,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal perforado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 27,
+    "clave": 1211,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal rebajado/sin rebajar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 28,
+    "clave": 1212,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal recortado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 29,
+    "clave": 1214,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal tejido zafado en piel o sintético",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 30,
+    "clave": 1216,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Piola mal colocada / sin colocar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 31,
+    "clave": 1218,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Sin estoperol",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 32,
+    "clave": 1220,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Tejido mal rematado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 33,
+    "clave": 1221,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal codificado por punto (mal claveado)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 34,
+    "clave": 1223,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Domado marcado (costilla / arrugas)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 35,
+    "clave": 1224,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal domado ( mal silueteado)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 36,
+    "clave": 1225,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal entretelado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 37,
+    "clave": 1226,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal rayado/ sin rayar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 38,
+    "clave": 1227,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Tronado de la domada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 39,
+    "clave": 1228,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal desbasurado o sin desbasurar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 40,
+    "clave": 1229,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Sucio de cemento / pegamento",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 41,
+    "clave": 1230,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Sucio de tizne de laser",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 42,
+    "clave": 1231,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Transfer mal colocado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 43,
+    "clave": 1232,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Piedra / estoperol /  cristales dañados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 44,
+    "clave": 1233,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Sin piedra / cristales",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 45,
+    "clave": 1234,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Bordado dañado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 46,
+    "clave": 1242,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Sin acabado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 47,
+    "clave": 1243,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal sellado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 48,
+    "clave": 1244,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Remache / herraje dañados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 49,
+    "clave": 1245,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Orejas / jaretas / aplicaciones sin pintar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 50,
+    "clave": 1247,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Forro mal armado / zigzag chueco",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 51,
+    "clave": 1254,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Oreja mal doblillada, bordada, armada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 52,
+    "clave": 1255,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Filos sin pintar / Mal pintado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 53,
+    "clave": 1256,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Hebras en forro",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 54,
+    "clave": 1257,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Fibra de vidrio mal colocada / sin fibra de vidrio",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 55,
+    "clave": 1258,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "zigzag caído / chueco ( forro )",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 56,
+    "clave": 1259,
+    "departamentoCodigo": "PRELIMINARES",
+    "departamentoNombre": "PRELIMINARES",
+    "defecto": "Mal doblillado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 57,
+    "clave": 1301,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Área no cortada por láser",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 58,
+    "clave": 1302,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Bordado mal centrado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 59,
+    "clave": 1303,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Bordados al mismo lado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 60,
+    "clave": 1304,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Diferente color / Calibre  de hilo",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 61,
+    "clave": 1305,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Diferente distancia",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 62,
+    "clave": 1307,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Hilo de la bobina por fuera(Trama)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 63,
+    "clave": 1308,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Intensidad de grabado errónea",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 64,
+    "clave": 1309,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Laser mal centrado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 65,
+    "clave": 1311,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Pelusa / peludo",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 66,
+    "clave": 1312,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Pieza dañada por laser",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 67,
+    "clave": 1314,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Piezas picadas aguja",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 68,
+    "clave": 1315,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Programa de bordado/Laser incorrecto",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 69,
+    "clave": 1316,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Sin bordado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 70,
+    "clave": 1318,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Hebras de bordado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 71,
+    "clave": 1319,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Mal refilado de láser",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 72,
+    "clave": 1320,
+    "departamentoCodigo": "BORDADO_Y_LASER",
+    "departamentoNombre": "BORDADO Y LASER",
+    "defecto": "Bordado caido / picado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 73,
+    "clave": 1401,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "3ro. con figura errónea",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 74,
+    "clave": 1402,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Aguja quebrada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 75,
+    "clave": 1403,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Armado chueco",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 76,
+    "clave": 1404,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Armado de piezas diferente talla",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 77,
+    "clave": 1405,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Bota mal cerrada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 78,
+    "clave": 1406,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Carretilla marcada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 79,
+    "clave": 1407,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Cierre mal colocado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 80,
+    "clave": 1408,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Corte quemado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 81,
+    "clave": 1409,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Cubre cierre (solapa) mal colocada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 82,
+    "clave": 1410,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Diferencia de puntadas por pulgada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 83,
+    "clave": 1411,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Enchinelado y 3ro. Escalonado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 84,
+    "clave": 1412,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Forro descosido / roto",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 85,
+    "clave": 1413,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Forro escaso / sancon",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 86,
+    "clave": 1414,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Forro mal asentado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 87,
+    "clave": 1415,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Forro mal empalmado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 88,
+    "clave": 1416,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Forro mal recortado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 89,
+    "clave": 1417,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Hebras de pespunte",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 90,
+    "clave": 1418,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Hilo diferente (color/ calibre)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 91,
+    "clave": 1421,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Mal encuartado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 92,
+    "clave": 1422,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Mal ojillado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 93,
+    "clave": 1423,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Mal revolteado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 94,
+    "clave": 1424,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Oreja mal pespuntada o colocada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 95,
+    "clave": 1425,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Pespunte caído / tranqueado / picado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 96,
+    "clave": 1426,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "remache / herraje dañados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 97,
+    "clave": 1427,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Piel tronada (pespunte)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 98,
+    "clave": 1428,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Pliegues en forro (pespunte)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 99,
+    "clave": 1430,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Sin conformar / Mal conformado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 100,
+    "clave": 1431,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Sin hilo de bobina",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 101,
+    "clave": 1432,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Sin  remache / herraje",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 102,
+    "clave": 1433,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Sin presillas, sin pespuntes, mal rematadas, safado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 103,
+    "clave": 1434,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Sobre costura chueca",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 104,
+    "clave": 1435,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Sucio de cemento / pegamento",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 105,
+    "clave": 1436,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Terceros chuecos",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 106,
+    "clave": 1437,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Tubo mal asentado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 107,
+    "clave": 1438,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Vivo mal colocado ( viboreado, comido, volado)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 108,
+    "clave": 1439,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Resorte mal colocado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 109,
+    "clave": 1440,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Accesorio mal armado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 110,
+    "clave": 1442,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Pespunte ( remate chueco )",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 111,
+    "clave": 1443,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Apiezado sin sobre costura",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 112,
+    "clave": 1444,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Fibra de vidrio mal colocada / sin fibra de vidrio",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 113,
+    "clave": 1445,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Cierre ondulado o deformado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 114,
+    "clave": 1446,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Herrajes dañados o quebrados",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 115,
+    "clave": 1447,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Cierre quemado o dañado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 116,
+    "clave": 1448,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Pespunte chueco o desuniforme",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 117,
+    "clave": 1449,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Mal enchinelado o enchinelado incorrecto",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 118,
+    "clave": 1450,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Mal Flameado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 119,
+    "clave": 1451,
+    "departamentoCodigo": "PESPUNTE",
+    "departamentoNombre": "PESPUNTE",
+    "defecto": "Mal ribeteado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente / Nuevo (Corregido)"
+  },
+  {
+    "num": 120,
+    "clave": 1502,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Casco marcado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 121,
+    "clave": 1503,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Clavo de anclar mal colocado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 122,
+    "clave": 1504,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Clavo expuesto (anclar, enfranques, talones , montado de puntas)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 123,
+    "clave": 1505,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Clavo visible externo ( enfranques, talones , montado de puntas)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 124,
+    "clave": 1506,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Corte dañado golpeado (montado)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 125,
+    "clave": 1507,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Diferencia de altura en talones",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 126,
+    "clave": 1508,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Diferencia de alturas laterales",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 127,
+    "clave": 1509,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Diferencia de distancia en puntas",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 128,
+    "clave": 1510,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Enfranque tronado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 129,
+    "clave": 1513,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Impares",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 130,
+    "clave": 1514,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Jalados a un lado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 131,
+    "clave": 1515,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mal alambrado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 132,
+    "clave": 1517,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mal desbasurado o sin desbasurar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 133,
+    "clave": 1518,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mal entallado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 134,
+    "clave": 1519,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mal montado de talón",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 135,
+    "clave": 1520,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mal parchado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 136,
+    "clave": 1522,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Marcas de agua",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 137,
+    "clave": 1523,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mona chueca",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 138,
+    "clave": 1524,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Mona clavada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 139,
+    "clave": 1525,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Montado al lado incorrecto",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 140,
+    "clave": 1526,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Piel tronada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 141,
+    "clave": 1527,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Planta mal colocada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 142,
+    "clave": 1528,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Punta chueca",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 143,
+    "clave": 1529,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Punta tronada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 144,
+    "clave": 1532,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Sin escuadra",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 145,
+    "clave": 1534,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Vivos abiertos",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 146,
+    "clave": 1535,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Vivos coleados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 147,
+    "clave": 1537,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Contrafuerte mal activado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 148,
+    "clave": 1538,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Contrafuerte marcado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 149,
+    "clave": 1539,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Contrafuerte mal colocado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 150,
+    "clave": 1540,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Pliegues en forro (montado)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 151,
+    "clave": 1542,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Pliegue en punta",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 152,
+    "clave": 1544,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Chinela con arrugas",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 153,
+    "clave": 1545,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Bordos en talos / pliegues",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 154,
+    "clave": 1546,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Suciedad de pegamento / mala limpieza",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 155,
+    "clave": 1547,
+    "departamentoCodigo": "MONTADO",
+    "departamentoNombre": "MONTADO",
+    "defecto": "Pliegue en chinela (forro)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 156,
+    "clave": 1601,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Cubre espinazo mal dividido",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 157,
+    "clave": 1602,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Delaminación del tacón",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 158,
+    "clave": 1603,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Firme contaminado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 159,
+    "clave": 1604,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Firme despegada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 160,
+    "clave": 1605,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Firme mal pegada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 161,
+    "clave": 1606,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Injerto despegado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 162,
+    "clave": 1607,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tacón mal embarrado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 163,
+    "clave": 1609,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Sin halogenar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 164,
+    "clave": 1610,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela con cicatriz abierta, falla, fierro",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 165,
+    "clave": 1611,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela mal suajada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 166,
+    "clave": 1612,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela sin dividir / Mal dividida",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 167,
+    "clave": 1613,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela sin pulir / Mal pulida",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 168,
+    "clave": 1614,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela, entresuela, herradura, tacón bofo o crudo",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 169,
+    "clave": 1615,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tacón mal armado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 170,
+    "clave": 1616,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tacón sin activar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 171,
+    "clave": 1617,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tacón sin prensar / Mal prensado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 172,
+    "clave": 1619,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Entresuela escalonada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 173,
+    "clave": 1620,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela mal pintada / sin pintar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 174,
+    "clave": 1621,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Enfranques mal pintados / Sin pintar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 175,
+    "clave": 1622,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela mal serigrafiada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 176,
+    "clave": 1623,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela mal preparada (alogenar, primer, pvc)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 177,
+    "clave": 1624,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tapas mal divididas/ Sin dividir",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 178,
+    "clave": 1625,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tacón diferente tamaño",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 179,
+    "clave": 1627,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Tacón sin escuadra",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 180,
+    "clave": 1628,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Firme mal pulida",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 181,
+    "clave": 1629,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Firme mal preparada (alogenar, primer, pvc)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 182,
+    "clave": 1630,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Firme dañada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 183,
+    "clave": 1631,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Media vida mal suajada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 184,
+    "clave": 1632,
+    "departamentoCodigo": "AVIOS",
+    "departamentoNombre": "AVÍOS",
+    "defecto": "Suela / Firme de hule con falla ( burbujas, hoyos)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 185,
+    "clave": 1467,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Placa metálica mal colocada, dañada o quebrada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 186,
+    "clave": 1468,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Pliegue en costura (welt)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 187,
+    "clave": 1469,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Emplaye (mal  retirado)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 188,
+    "clave": 1470,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela, cantos o tacón mal cepillados / mal brocholeados / mal barrido",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 189,
+    "clave": 1701,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Boca de tacón abierta",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 190,
+    "clave": 1702,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Bocas de tacón sin pintar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 191,
+    "clave": 1704,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Cantos mal pintados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 192,
+    "clave": 1705,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Cerco abierto",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 193,
+    "clave": 1706,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Cerco dañado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 194,
+    "clave": 1707,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Cerco erróneo",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 195,
+    "clave": 1708,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Cerco volado - comido",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 196,
+    "clave": 1710,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Clavo de apuntillar por fuera",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 197,
+    "clave": 1711,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Clavo de entaconar visible",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 198,
+    "clave": 1712,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Colillas despegadas",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 199,
+    "clave": 1713,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Colillas mal cortadas",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 200,
+    "clave": 1714,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Comidos de la desvirada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 201,
+    "clave": 1715,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Corcho mal aplicado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 202,
+    "clave": 1716,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Corte dañado-golpeado (acabado)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 203,
+    "clave": 1717,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Costura mal asentada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 204,
+    "clave": 1718,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Costura stitcher caída",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 205,
+    "clave": 1719,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Costura stitcher chueca / encajonada / volada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 206,
+    "clave": 1720,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Costura stitcher errónea",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 207,
+    "clave": 1721,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Diferente tono de cantos",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 208,
+    "clave": 1722,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Diferente tono de stein",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 209,
+    "clave": 1723,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Enfranque abierto",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 210,
+    "clave": 1724,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Espinazo mal colocado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 211,
+    "clave": 1725,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Estaquilla mal apomazada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 212,
+    "clave": 1726,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Estaquilla por fuera de la planta",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 213,
+    "clave": 1727,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Grapa de clavar herradura",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 214,
+    "clave": 1728,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Grapas en planta",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 215,
+    "clave": 1729,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Hebras welt",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 216,
+    "clave": 1730,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Herradura despegada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 217,
+    "clave": 1731,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Costura landis - stitcher sucia",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 218,
+    "clave": 1732,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Impares",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 219,
+    "clave": 1733,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Landis - stitcher desuniforme",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 220,
+    "clave": 1734,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal afinados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 221,
+    "clave": 1735,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal apomazados",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 222,
+    "clave": 1736,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal apuntillado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 223,
+    "clave": 1737,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal cardado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 224,
+    "clave": 1738,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal costeado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 225,
+    "clave": 1739,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal desbasurado o sin desbasurar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 226,
+    "clave": 1740,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal entaconado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 227,
+    "clave": 1741,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal estaquillado / sin estaquilla",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 228,
+    "clave": 1742,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal rebatido",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 229,
+    "clave": 1743,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal remachado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 230,
+    "clave": 1744,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Manchas de stein",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 231,
+    "clave": 1745,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Muelas",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 232,
+    "clave": 1746,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "No da piso",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 233,
+    "clave": 1747,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Sobrecardado / chapazo",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 234,
+    "clave": 1748,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Stein mal aplicado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 235,
+    "clave": 1749,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela chueca",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 236,
+    "clave": 1750,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela con rebaba",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 237,
+    "clave": 1751,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela dañada / Suala con falla",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 238,
+    "clave": 1752,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela despegada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 239,
+    "clave": 1753,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela diferente tamaño (tiro)",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 240,
+    "clave": 1754,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela mal fijada / diferente punto de suela",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 241,
+    "clave": 1755,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Suela marcada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 242,
+    "clave": 1757,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Tacón dañado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 243,
+    "clave": 1758,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Tacón diferente tamaño (tiro)",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 244,
+    "clave": 1759,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Tacón mal fijado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 245,
+    "clave": 1760,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Tacón volado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 246,
+    "clave": 1761,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Terminaciones de Welt (distancia de costuras)",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 247,
+    "clave": 1762,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Sin plantilla, plantilla corta , despegada , mal colocada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 248,
+    "clave": 1763,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Cerco poroso",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 249,
+    "clave": 1764,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Mal sangrado de cerco",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 250,
+    "clave": 1766,
+    "departamentoCodigo": "ACABADO",
+    "departamentoNombre": "ACABADO",
+    "defecto": "Sucio de pegamento",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 251,
+    "clave": 1801,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Acabado caído",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 252,
+    "clave": 1802,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Agujetas / motas / aplicaciones mal colocadas",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 253,
+    "clave": 1803,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Brillo desuniforme",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 254,
+    "clave": 1804,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Brochuelo mal aplicado / sin brochuelo",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 255,
+    "clave": 1805,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Cantos sin retocar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 256,
+    "clave": 1806,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Corte sin brillo",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 257,
+    "clave": 1807,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Diferente tono / concepto",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 258,
+    "clave": 1808,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Falta papel relleno / soporte",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 259,
+    "clave": 1809,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Forro arrugado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 260,
+    "clave": 1810,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Freno sin recortar",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 261,
+    "clave": 1811,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Hebra de landis- stitcher",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 262,
+    "clave": 1812,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Herrajes despintados , oxidados , manchados",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 263,
+    "clave": 1813,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Costura landis - stitcher sucia",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 264,
+    "clave": 1814,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Impares",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 265,
+    "clave": 1815,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Mal etiquetado",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 266,
+    "clave": 1816,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Pelo apelmazado en carnaza, gamuza , nobuk , textil",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 267,
+    "clave": 1817,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Tubos con arrugas",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 268,
+    "clave": 1818,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Piel mal resanada o sin resanar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 269,
+    "clave": 1819,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Plantilla mal serigrafiada",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 270,
+    "clave": 1820,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Rebaba en firme",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 271,
+    "clave": 1822,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Sombras mal aplicadas",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 272,
+    "clave": 1823,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Soporte / papel  mal colocado",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 273,
+    "clave": 1824,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Soporte / papel sucio",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 274,
+    "clave": 1825,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Sucio de cemento / pegamento",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 275,
+    "clave": 1826,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Sucio de pigmento",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 276,
+    "clave": 1827,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Suela sin brillo",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 277,
+    "clave": 1828,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Cierres/ Herrajes/ Piedras sucios",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 278,
+    "clave": 1830,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Suela / Tacon sucio de anilina",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 279,
+    "clave": 1831,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Forro sucio de anilina",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 280,
+    "clave": 1832,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Piel sucia de anilina",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 281,
+    "clave": 1833,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Crema mal aplicada",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 282,
+    "clave": 1834,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Firme con rebaba",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 283,
+    "clave": 1835,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Sin etiqueta colgante",
+    "clasificacion": "MENOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 284,
+    "clave": 1836,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Sin conformar / sin conformar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 285,
+    "clave": 1837,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Gamuza apelmazada / mal brocholeada",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 286,
+    "clave": 1838,
+    "departamentoCodigo": "ADORNO",
+    "departamentoNombre": "ADORNO",
+    "defecto": "Barbas sin planchar",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 287,
+    "clave": 1901,
+    "departamentoCodigo": "PREMONTADO",
+    "departamentoNombre": "PREMONTADO",
+    "defecto": "Sin casco",
+    "clasificacion": "CRITICO",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 288,
+    "clave": 1902,
+    "departamentoCodigo": "PREMONTADO",
+    "departamentoNombre": "PREMONTADO",
+    "defecto": "Casco mal colocado",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  },
+  {
+    "num": 289,
+    "clave": 1903,
+    "departamentoCodigo": "PREMONTADO",
+    "departamentoNombre": "PREMONTADO",
+    "defecto": "Mal compuesta ( aspreado, pegado )",
+    "clasificacion": "MAYOR",
+    "estadoOrigen": "Existente (Actualizado)"
+  }
+]

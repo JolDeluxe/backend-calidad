@@ -77,6 +77,7 @@ async function replicarConfiguracionProduccion() {
     { id: 7, codigo: 'AVIOS', nombre: 'AVIOS', estado: 'ACTIVO' as const, numeroLineas: 1 },
     { id: 8, codigo: 'BETA_7', nombre: 'BETA 7', estado: 'ACTIVO' as const, numeroLineas: 1 },
     { id: 11, codigo: 'ADORNO', nombre: 'ADORNO', estado: 'ACTIVO' as const, numeroLineas: 1 },
+    { id: 13, codigo: 'PREMONTADO', nombre: 'PREMONTADO', estado: 'ACTIVO' as const, numeroLineas: 1 },
   ];
 
   for (const d of departamentosData) {
@@ -112,6 +113,7 @@ async function replicarConfiguracionProduccion() {
     { id: 7, departamentoId: 8, lineaId: 1, activo: true, orden: 0 },
     { id: 8, departamentoId: 4, lineaId: 1, activo: true, orden: 0 },
     { id: 9, departamentoId: 11, lineaId: 1, activo: true, orden: 0 },
+    { id: 10, departamentoId: 13, lineaId: 1, activo: true, orden: 0 },
   ];
 
   for (const dl of deptoLineasData) {
