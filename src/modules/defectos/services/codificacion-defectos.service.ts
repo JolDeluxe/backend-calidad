@@ -17,7 +17,7 @@ type ClasificacionDefecto = "CRITICO" | "MAYOR" | "MENOR";
 export interface LoteDefectosInput {
   lineaId: number;
   departamentoId: number;
-  filas: Array<{ descripcion: string; clasificacion: string }>;
+  filas: Array<{ clave?: number; descripcion: string; clasificacion: string }>;
   departamentosIds?: number[];
   etapasPermitidasIds?: number[];
 }
@@ -139,9 +139,47 @@ export class CodificacionDefectosService {
     }
 
     await this.validarDepartamento(input.departamentoId);
+
+    const validaciones = validarFilasLote(input.filas as FilaLoteEntrada[]);
+    const todasConClaveManual = input.filas.length > 0 && input.filas.every((f) => f.clave !== undefined && f.clave > 0);
+
+    if (todasConClaveManual) {
+      // Modo manual: comprobar si alguna de las claves ya existe en la base de datos
+      const clavesManuales = input.filas.map((f) => f.clave as number);
+      const existentes = await prisma.defecto.findMany({
+        where: { clave: { in: clavesManuales } },
+        select: { clave: true, defecto: true },
+      });
+      const mapaExistentes = new Map(existentes.map((e) => [e.clave, e.defecto]));
+
+      const filas = validaciones.map((v) => {
+        const filaEntrada = input.filas[v.indice];
+        const clave = filaEntrada?.clave ?? null;
+        const errores = [...v.errores];
+        if (clave && mapaExistentes.has(clave)) {
+          errores.push(`La clave #${clave} ya está ocupada ('${mapaExistentes.get(clave)}')`);
+        }
+        return {
+          indice: v.indice,
+          valida: errores.length === 0,
+          errores,
+          clavePropuesta: clave,
+        };
+      });
+
+      const todasValidas = filas.every((f) => f.valida);
+      return {
+        grupo: null,
+        filas,
+        clavesOmitidas: [],
+        errores: [],
+        valido: todasValidas && filas.length > 0,
+      };
+    }
+
+    // Modo automático por grupo
     const grupo = await this.resolverGrupo(input.lineaId, input.departamentoId);
     const ocupadas = await this.leerClavesOcupadas(prisma, grupo.prefijo);
-    const validaciones = validarFilasLote(input.filas as FilaLoteEntrada[]);
     const validas = validaciones.filter((v) => v.errores.length === 0);
 
     const proyeccion = proyectarClaves(
@@ -262,7 +300,6 @@ export class CodificacionDefectosService {
     }
 
     await this.validarDepartamento(input.departamentoId);
-    const grupoPrevio = await this.resolverGrupo(input.lineaId, input.departamentoId);
 
     const validaciones = validarFilasLote(input.filas as FilaLoteEntrada[]);
     const conErrores = validaciones.filter((v) => v.errores.length > 0);
@@ -270,15 +307,45 @@ export class CodificacionDefectosService {
       throw new BadRequestError("El lote contiene filas inválidas", { filas: conErrores });
     }
 
+    const todasConClaveManual = input.filas.every((f) => f.clave !== undefined && f.clave > 0);
+
+    const grupoPrevio = todasConClaveManual ? null : await this.resolverGrupo(input.lineaId, input.departamentoId);
+
     try {
       return await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
-          const asignacion = await this.asignarClaves(tx, grupoPrevio.id, input.filas.length, usuarioId);
+          let clavesFinales: number[];
+          let omitidasFinales: number[] = [];
+          let grupoId: number | null = null;
+          let prefijo: number | null = null;
+          let lineaEfectivaId = input.lineaId;
+
+          if (todasConClaveManual) {
+            clavesFinales = input.filas.map((f) => f.clave as number);
+            // Validar unicidad manual contra la BD
+            const ocupadas = await tx.defecto.findMany({
+              where: { clave: { in: clavesFinales } },
+              select: { clave: true, defecto: true },
+            });
+            if (ocupadas.length > 0) {
+              const primera = ocupadas[0];
+              throw new ConflictError(`La clave #${primera.clave} ya está registrada ('${primera.defecto}')`);
+            }
+          } else {
+            if (!grupoPrevio) {
+              throw new BadRequestError("No se encontró un grupo de codificación para asignar claves automáticamente");
+            }
+            const asignacion = await this.asignarClaves(tx, grupoPrevio.id, input.filas.length, usuarioId);
+            clavesFinales = asignacion.claves;
+            omitidasFinales = asignacion.omitidas;
+            grupoId = asignacion.grupo.id;
+            prefijo = asignacion.grupo.prefijo;
+            lineaEfectivaId = asignacion.grupo.lineaId;
+          }
 
           const items: Array<{ indice: number; id: number; clave: number }> = [];
 
           // Lista de departamentos activos directos (DefectoDepartamento):
-          // Si el cliente especificó departamentosIds se usan ésos; si no, por defecto solo el propietario.
           const deptosAsociarIds = new Set<number>();
           deptosAsociarIds.add(input.departamentoId);
           if (input.departamentosIds && input.departamentosIds.length > 0) {
@@ -286,14 +353,16 @@ export class CodificacionDefectosService {
           }
 
           // Matriz de etapas de detección (DefectoEtapa):
-          // 1. Si el cliente envió etapasPermitidasIds explícitas o departamentosIds seleccionados, se usan.
-          // 2. Si no, se hereda la plantilla histórica del departamento propietario.
-          // 3. Fallback: solo el propietario.
           const mapaPermitidos = new Map<number, boolean>();
-          const deptosLinea = await tx.departamentoLinea.findMany({
-            where: { lineaId: asignacion.grupo.lineaId, activo: true, eliminadoEn: null },
-            select: { departamentoId: true },
-          });
+          const deptosLinea = lineaEfectivaId
+            ? await tx.departamentoLinea.findMany({
+                where: { lineaId: lineaEfectivaId, activo: true, eliminadoEn: null },
+                select: { departamentoId: true },
+              })
+            : await tx.departamento.findMany({
+                where: { estado: "ACTIVO", eliminadoEn: null },
+                select: { id: true },
+              }).then((ds) => ds.map((d) => ({ departamentoId: d.id })));
 
           const permitidosEspecificos = (input.etapasPermitidasIds && input.etapasPermitidasIds.length > 0)
             ? new Set(input.etapasPermitidasIds)
@@ -321,7 +390,7 @@ export class CodificacionDefectosService {
 
           for (let i = 0; i < input.filas.length; i++) {
             const fila = input.filas[i];
-            const clave = asignacion.claves[i];
+            const clave = clavesFinales[i];
             const nuevo = await tx.defecto.create({
               data: {
                 clave,
@@ -367,9 +436,9 @@ export class CodificacionDefectosService {
                 valoresPosteriores: nuevo as unknown as Record<string, unknown>,
                 metadatos: {
                   cargaMasiva: true,
-                  grupoCodificacionId: asignacion.grupo.id,
-                  lineaId: asignacion.grupo.lineaId,
-                  prefijo: asignacion.grupo.prefijo,
+                  grupoCodificacionId: grupoId,
+                  lineaId: lineaEfectivaId,
+                  prefijo,
                 },
                 contexto: { usuarioId },
               },
@@ -379,7 +448,7 @@ export class CodificacionDefectosService {
             items.push({ indice: i, id: nuevo.id, clave: nuevo.clave });
           }
 
-          return { grupoId: asignacion.grupo.id, prefijo: asignacion.grupo.prefijo, items, clavesOmitidas: asignacion.omitidas };
+          return { grupoId, prefijo, items, clavesOmitidas: omitidasFinales };
         },
         { maxWait: 10000, timeout: 120000 },
       );

@@ -72,6 +72,7 @@ export function proyectarClaves(
 }
 
 export interface FilaLoteEntrada {
+  clave?: number;
   descripcion: string;
   clasificacion: string;
 }
@@ -91,15 +92,29 @@ function normalizarDescripcion(texto: string): string {
 }
 
 /**
- * Valida cada fila del lote: descripción obligatoria y acotada, clasificación válida y duplicados dentro del listado.
+ * Valida cada fila del lote: descripción obligatoria y acotada, clasificación válida, clave si se envía y duplicados dentro del listado.
  * No consulta la base de datos.
  */
 export function validarFilasLote(filas: ReadonlyArray<FilaLoteEntrada>): ResultadoValidacionFila[] {
   const primeraAparicion = new Map<string, number>();
+  const primeraClave = new Map<number, number>();
 
   return filas.map((fila, indice) => {
     const errores: string[] = [];
     const descripcion = (fila.descripcion ?? "").trim();
+
+    if (fila.clave !== undefined) {
+      if (!Number.isInteger(fila.clave) || fila.clave <= 0) {
+        errores.push("La clave debe ser un número entero positivo");
+      } else {
+        const previa = primeraClave.get(fila.clave);
+        if (previa !== undefined) {
+          errores.push(`Clave duplicada en el listado (igual a la fila ${previa + 1})`);
+        } else {
+          primeraClave.set(fila.clave, indice);
+        }
+      }
+    }
 
     if (descripcion.length === 0) {
       errores.push("La descripción es obligatoria");

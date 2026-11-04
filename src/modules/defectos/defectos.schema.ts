@@ -73,6 +73,7 @@ const loteBaseShape = {
 // La validación fina por fila (descripción, clasificación, duplicados) la hace el servicio
 // para poder devolver los errores junto a cada fila en lugar de rechazar todo el cuerpo.
 const filaLoteSchema = z.object({
+  clave: z.number().int().positive("La clave debe ser un número entero positivo").optional(),
   descripcion: z.string(),
   clasificacion: z.string(),
 });
