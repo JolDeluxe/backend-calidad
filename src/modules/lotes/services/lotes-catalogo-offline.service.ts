@@ -12,6 +12,7 @@ export interface LoteOfflineItem {
   lista: string;
   idProducto: string;
   modelo: string;
+  descripcion: string | null;
   cantidad: number;
   horma: string | null;
   cliente: string;
@@ -58,6 +59,7 @@ export class LotesCatalogoOfflineService {
         lista: true,
         idProducto: true,
         modelo: true,
+        descripcion: true,
         cantidad: true,
         horma: true,
         cliente: true,
@@ -79,6 +81,7 @@ export class LotesCatalogoOfflineService {
       lista: l.lista,
       idProducto: l.idProducto,
       modelo: l.modelo,
+      descripcion: l.descripcion?.trim() ? l.descripcion.trim() : null,
       cantidad: Number(l.cantidad),
       horma: l.horma,
       cliente: l.cliente,
