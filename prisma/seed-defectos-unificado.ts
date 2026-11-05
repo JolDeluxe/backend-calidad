@@ -30,7 +30,34 @@ export async function seedDefectosUnificado() {
 
   const deptos = await prisma.departamento.findMany();
   const mapDeptos = new Map<string, number>();
-  deptos.forEach((d) => mapDeptos.set(d.codigo, d.id));
+  deptos.forEach((d) => {
+    mapDeptos.set(d.codigo, d.id);
+    mapDeptos.set(d.codigo.trim().toUpperCase(), d.id);
+    mapDeptos.set(d.nombre.trim().toUpperCase(), d.id);
+  });
+
+  // Compatibilidad para variaciones históricas del código de Pespunte en Producción (PESPUENTE / PESPUNTE)
+  if (!mapDeptos.has("PESPUNTE")) {
+    const pespunteDepto = deptos.find(
+      (d) =>
+        d.id === 4 ||
+        d.codigo === "PESPUENTE" ||
+        d.nombre.toUpperCase().includes("PESPUNTE") ||
+        d.nombre.toUpperCase().includes("PESPUENTE")
+    );
+    if (pespunteDepto) {
+      console.log(`ℹ️ Mapeando PESPUNTE al departamento ID ${pespunteDepto.id} (código actual en BD: "${pespunteDepto.codigo}")`);
+      mapDeptos.set("PESPUNTE", pespunteDepto.id);
+      // Actualizar el código a PESPUNTE si estaba con la errata histórica PESPUENTE
+      if (pespunteDepto.codigo === "PESPUENTE") {
+        await prisma.departamento.update({
+          where: { id: pespunteDepto.id },
+          data: { codigo: "PESPUNTE", nombre: "PESPUNTE" },
+        });
+        console.log(`✓ Código de departamento actualizado de PESPUENTE a PESPUNTE (ID ${pespunteDepto.id})`);
+      }
+    }
+  }
 
   // Asegurar PREMONTADO
   if (!mapDeptos.has("PREMONTADO")) {
