@@ -47,10 +47,14 @@ export async function seedDefectosUnificado() {
 
   let actualizados = 0;
   let creados = 0;
+  const noEncontradosDepto: string[] = [];
 
   for (const item of defectosData) {
     const deptoId = mapDeptos.get(item.departamentoCodigo);
-    if (!deptoId) continue;
+    if (!deptoId) {
+      noEncontradosDepto.push(`${item.clave} (${item.departamentoCodigo})`);
+      continue;
+    }
 
     const existente = await prisma.defecto.findUnique({
       where: { clave: item.clave },
@@ -157,7 +161,10 @@ export async function seedDefectosUnificado() {
     }
   }
 
-  console.log(`✓ Catálogo unificado de defectos sincronizado (${creados} creados, ${actualizados} actualizados).`);
+  console.log(`✓ Catálogo unificado de defectos sincronizado (${creados} creados, ${actualizados} actualizados, Total procesados: ${creados + actualizados} / ${defectosData.length}).`);
+  if (noEncontradosDepto.length > 0) {
+    console.warn(`⚠️ Defectos omitidos por departamento no encontrado (${noEncontradosDepto.length}):`, noEncontradosDepto);
+  }
   console.log(`✓ Grupos de codificación 11-19 actualizados con consecutivos exactos.`);
 }
 
