@@ -55,10 +55,29 @@ export async function seedConfigDefectos() {
   console.log(`✓ Línea encontrada: [ID ${lineaBota.id}] ${lineaBota.codigo} - ${lineaBota.nombre}`);
 
   for (const cfg of CONFIGURACION_GRUPOS) {
-    // 2. Resolver Departamento
-    const depto = await prisma.departamento.findFirst({
-      where: { codigo: cfg.deptoCodigo, estado: "ACTIVO", eliminadoEn: null },
+    // 2. Resolver Departamento (por código, id o nombres históricos)
+    let depto = await prisma.departamento.findFirst({
+      where: {
+        OR: [
+          { codigo: cfg.deptoCodigo },
+          { nombre: cfg.deptoCodigo },
+          ...(cfg.deptoCodigo === "PESPUNTE" ? [{ codigo: "PESPUENTE" }, { id: 4 }] : []),
+          ...(cfg.deptoCodigo === "BORDADO_Y_LASER" ? [{ codigo: "BORDADO Y LASER" }, { id: 3 }] : []),
+          ...(cfg.deptoCodigo === "PREMONTADO" ? [{ id: 10 }, { id: 13 }] : []),
+        ],
+        estado: "ACTIVO",
+        eliminadoEn: null,
+      },
     });
+
+    if (depto && cfg.deptoCodigo === "PESPUNTE" && depto.codigo === "PESPUENTE") {
+      await prisma.departamento.update({
+        where: { id: depto.id },
+        data: { codigo: "PESPUNTE", nombre: "PESPUNTE" },
+      });
+      depto.codigo = "PESPUNTE";
+    }
+
     if (!depto) {
       console.warn(`⚠️ Departamento ${cfg.deptoCodigo} no encontrado en BD. Omitiendo.`);
       continue;
