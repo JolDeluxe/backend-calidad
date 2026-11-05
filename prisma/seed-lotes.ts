@@ -16,9 +16,9 @@ import { importarLotesDesdeCSV } from '../src/modules/lotes/services/lotes-impor
 async function resolverRutaLotesCSV(): Promise<string> {
   const candidatePaths = [
     process.env.LOTES_CSV_PATH,
+    'H:\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
     'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse\\Calidad Datos Base.csv',
     'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse\\Calidad Datos Base.csv',
-    'H:\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
     '\\\\200.1.1.58\\usuariosmbc\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
     '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase\\Calidad Datos Base.csv',
   ].filter((p): p is string => Boolean(p));
