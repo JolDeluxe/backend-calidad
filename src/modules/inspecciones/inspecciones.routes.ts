@@ -10,6 +10,9 @@ import { validate } from "../../middlewares/validate";
 import {
   createInspeccionSchema,
   getInspeccionesQuerySchema,
+  exportarInspeccionesQuerySchema,
+  getPeriodosDisponiblesQuerySchema,
+  getInspectoresQuerySchema,
   eliminacionLogicaSchema,
   detalleIdParamSchema,
   inspeccionIdParamSchema,
@@ -58,12 +61,29 @@ router.post(
   (req, res, next) => inspeccionesController.createInspeccion(req, res, next)
 );
 
-// Listado de inspectores registrados (catálogo para filtros): solo alcance general
+// Listado de inspectores activos registrados (catálogo para filtros): solo alcance general
 router.get(
   "/inspectores",
+  validate({ query: getInspectoresQuerySchema }),
   resolverAlcanceHistorial,
   requireAlcanceGeneral,
   (req, res, next) => inspeccionesController.getInspectores(req, res, next)
+);
+
+// Periodos con registros reales disponibles (años, años ISO, meses, semanas ISO y días)
+router.get(
+  "/periodos-disponibles",
+  validate({ query: getPeriodosDisponiblesQuerySchema }),
+  resolverAlcanceHistorial,
+  (req, res, next) => inspeccionesController.getPeriodosDisponibles(req, res, next)
+);
+
+// Exportación completa sin truncamiento (por lotes internos): alcance según permisos efectivos
+router.get(
+  "/exportar",
+  validate({ query: exportarInspeccionesQuerySchema }),
+  resolverAlcanceHistorial,
+  (req, res, next) => inspeccionesController.exportarFilasInspeccion(req, res, next)
 );
 
 // Historial: filas por defecto registrado. Alcance según permisos efectivos (propios / general).

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../config/database";
 import { NotFoundError, BadRequestError, ConflictError, UnauthorizedError, ForbiddenError } from "../../../utils/errors";
 import { auditService } from "../../audit/services/audit.service";
@@ -5,6 +6,19 @@ import { offlineAuthService } from "../../auth/services/offline-auth.service";
 import { permissionsService } from "../../auth/services/permissions.service";
 import { inspeccionesLegacyService, type LegacyWriteResult } from "./inspecciones-legacy.service";
 import { matrizVisibilidadDefectosService } from "../../defectos/services/matriz-visibilidad.service";
+import {
+  NOMBRES_MESES_ES,
+  formatearDiaDisponible,
+  getHoyMexicoStr,
+  getIsoYearAndWeek,
+  getPartesFechaMexico,
+  getRangoAnioIsoCompletoUtc,
+  getRangoAnioUtc,
+  getRangoDiaUtc,
+  getRangoMesUtc,
+  getRangoPersonalizadoUtc,
+  getRangoSemanaIsoUtc,
+} from "../../../utils/timezone";
 
 export interface ItemDefectoInput {
   defectoId: number;
@@ -69,8 +83,18 @@ export interface SyncOfflineItemResult {
   codigoHttp: number;
 }
 
-export interface GetInspeccionesParams {
-  periodo?: "hoy" | "ultimos" | "todos";
+export type ModalidadPeriodoInspeccion =
+  | "hoy"
+  | "ultimos"
+  | "todos"
+  | "anio"
+  | "mes"
+  | "semana"
+  | "dia"
+  | "rango";
+
+export interface FiltrosBaseInspeccionesParams {
+  periodo?: ModalidadPeriodoInspeccion;
   busqueda?: string;
   lote?: string;
   defectoClave?: number;
@@ -86,15 +110,33 @@ export interface GetInspeccionesParams {
     departamentosIds?: number[];
     terminalId?: number;
   };
+  /**
+   * Departamentos autorizados cuando un usuario con alcance general (ej. COORD/ADMIN)
+   * tiene restricción departamental explícita asignada.
+   */
+  departamentosPermitidosIds?: number[];
+  dia?: string;
+  semana?: number;
+  anioIso?: number;
   mes?: number;
   anio?: number;
-  /** Rango de fechas de inspección (inclusive). */
-  fechaDesde?: Date;
-  fechaHasta?: Date;
+  /** Rango de fechas de inspección (`AAAA-MM-DD` en `America/Mexico_City` o `Date`). */
+  fechaDesde?: string | Date;
+  fechaHasta?: string | Date;
   terminalId?: number;
   soloEliminados?: boolean;
+}
+
+export interface GetInspeccionesParams extends FiltrosBaseInspeccionesParams {
   page: number;
   limit: number;
+}
+
+export interface GetPeriodosDisponiblesParams extends FiltrosBaseInspeccionesParams {}
+
+export interface GetInspectoresParams {
+  departamentoId?: number;
+  departamentosPermitidosIds?: number[];
 }
 
 export interface EliminacionLogicaParams {
@@ -111,15 +153,10 @@ export class InspeccionesService {
    * 2. topSemanal: top 10 defectos de la semana agrupados por línea operativa.
    */
   async getDashboardMetricas() {
-    const hoyInicio = new Date();
-    hoyInicio.setHours(0, 0, 0, 0);
-    const hoyFin = new Date();
-    hoyFin.setHours(23, 59, 59, 999);
-
-    const diaSemana = hoyInicio.getDay();
-    const diasAlLunes = diaSemana === 0 ? 6 : diaSemana - 1;
-    const lunesSemana = new Date(hoyInicio);
-    lunesSemana.setDate(hoyInicio.getDate() - diasAlLunes);
+    const hoyStr = getHoyMexicoStr();
+    const { inicioUtc: hoyInicio, finUtc: hoyFin } = getRangoDiaUtc(hoyStr);
+    const isoHoy = getIsoYearAndWeek(hoyStr);
+    const { inicioUtc: lunesSemana } = getRangoSemanaIsoUtc(isoHoy.anioIso, isoHoy.semanaIso);
 
     const [deptosHoyGroup, detallesSemana] = await Promise.all([
       prisma.inspeccionDetalle.groupBy({
@@ -128,7 +165,7 @@ export class InspeccionesService {
           eliminadoEn: null,
           inspeccion: {
             eliminadoEn: null,
-            fechaInspeccion: { gte: hoyInicio, lte: hoyFin },
+            fechaInspeccion: { gte: hoyInicio, lt: hoyFin },
           },
         },
         _sum: { paresDefectuosos: true },
@@ -139,7 +176,7 @@ export class InspeccionesService {
           eliminadoEn: null,
           inspeccion: {
             eliminadoEn: null,
-            fechaInspeccion: { gte: lunesSemana, lte: hoyFin },
+            fechaInspeccion: { gte: lunesSemana, lt: hoyFin },
           },
         },
         select: {
@@ -1203,11 +1240,166 @@ export class InspeccionesService {
   }
 
   /**
-   * Consulta a nivel de cada defecto registrado (fila unitaria como en el sistema original).
-   * Soporta periodos: 'hoy', 'ultimos' (30 registros) y 'todos' (con filtro por mes y año).
-   * Búsqueda por Lote o Clave de Defecto.
+   * Valida que los filtros departamentales solicitados no excedan el alcance autorizado del usuario.
    */
-  async getFilasInspeccion(params: GetInspeccionesParams) {
+  private validarAlcanceDepartamental(params: {
+    departamentoId?: number;
+    departamentoAuditoriaId?: number;
+    departamentoResponsableId?: number;
+    departamentosPermitidosIds?: number[];
+    alcanceRestringido?: {
+      usuarioId: number;
+      departamentosIds?: number[];
+      terminalId?: number;
+    };
+  }): void {
+    const permitidos =
+      params.departamentosPermitidosIds && params.departamentosPermitidosIds.length > 0
+        ? params.departamentosPermitidosIds
+        : params.alcanceRestringido?.departamentosIds && params.alcanceRestringido.departamentosIds.length > 0
+        ? params.alcanceRestringido.departamentosIds
+        : undefined;
+
+    if (!permitidos) return;
+
+    if (params.departamentoId && !permitidos.includes(params.departamentoId)) {
+      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+    if (params.departamentoAuditoriaId && !permitidos.includes(params.departamentoAuditoriaId)) {
+      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+    if (
+      params.departamentosPermitidosIds &&
+      params.departamentosPermitidosIds.length > 0 &&
+      params.departamentoResponsableId &&
+      !permitidos.includes(params.departamentoResponsableId)
+    ) {
+      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+  }
+
+  /**
+   * Resuelve el intervalo semiabierto `[inicioUtc, finUtc)` en UTC (`fecha >= inicioUtc && fecha < finUtc`)
+   * interpretando los parámetros operativos en la zona horaria `America/Mexico_City` (UTC-6).
+   */
+  public resolverFiltroTemporalUtc(params: FiltrosBaseInspeccionesParams): {
+    periodoEfectivo: ModalidadPeriodoInspeccion;
+    inicioUtc?: Date;
+    finUtc?: Date;
+  } {
+    const partesHoy = getPartesFechaMexico();
+    const hoyStr = partesHoy.fechaStr;
+    const { finUtc: finHoyUtc } = getRangoDiaUtc(hoyStr);
+
+    // Normalizar fechaDesde / fechaHasta si vienen como string (AAAA-MM-DD) o como Date
+    const tieneRangoExplicito = Boolean(params.fechaDesde || params.fechaHasta || params.periodo === "rango");
+    if (tieneRangoExplicito) {
+      let inicioUtc: Date | undefined;
+      let finUtc: Date | undefined;
+
+      if (typeof params.fechaDesde === "string") {
+        inicioUtc = getRangoDiaUtc(params.fechaDesde).inicioUtc;
+      } else if (params.fechaDesde instanceof Date) {
+        inicioUtc = params.fechaDesde;
+      }
+
+      if (typeof params.fechaHasta === "string") {
+        finUtc = getRangoDiaUtc(params.fechaHasta).finUtc;
+      } else if (params.fechaHasta instanceof Date) {
+        finUtc = params.fechaHasta;
+      }
+
+      if (finUtc && finUtc.getTime() > finHoyUtc.getTime()) {
+        finUtc = finHoyUtc;
+      }
+
+      return {
+        periodoEfectivo: params.periodo === "rango" ? "rango" : "todos",
+        inicioUtc,
+        finUtc: finUtc ?? finHoyUtc,
+      };
+    }
+
+    // Día específico (`dia=AAAA-MM-DD` o `periodo=dia`)
+    if (params.dia) {
+      const { inicioUtc, finUtc } = getRangoDiaUtc(params.dia);
+      return {
+        periodoEfectivo: params.periodo === "dia" ? "dia" : "todos",
+        inicioUtc,
+        finUtc: finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : finUtc,
+      };
+    }
+
+    // Semana ISO 8601 (`semana=1..53` + `anioIso`/`anio` o `periodo=semana`)
+    if (params.semana !== undefined) {
+      const isoHoy = getIsoYearAndWeek(hoyStr);
+      const anioIso = params.anioIso || params.anio || isoHoy.anioIso;
+      const { inicioUtc, finUtc } = getRangoSemanaIsoUtc(anioIso, params.semana);
+      return {
+        periodoEfectivo: params.periodo === "semana" ? "semana" : "todos",
+        inicioUtc,
+        finUtc: finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : finUtc,
+      };
+    }
+
+    const periodo = params.periodo || "ultimos";
+
+    if (params.soloEliminados && periodo === "ultimos" && !params.mes && !params.anio) {
+      return { periodoEfectivo: "ultimos" };
+    }
+
+    if (periodo === "hoy") {
+      const { inicioUtc, finUtc } = getRangoDiaUtc(hoyStr);
+      return {
+        periodoEfectivo: "hoy",
+        inicioUtc,
+        finUtc,
+      };
+    }
+
+    // Mes específico (`periodo=mes` o `periodo=todos` con `mes`)
+    if (periodo === "mes" || (params.mes !== undefined && (periodo === "todos" || periodo === "anio"))) {
+      const anio = params.anio || partesHoy.anio;
+      const { inicioUtc, finUtc } = getRangoMesUtc(anio, params.mes!);
+      return {
+        periodoEfectivo: periodo === "mes" ? "mes" : "todos",
+        inicioUtc,
+        finUtc: finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : finUtc,
+      };
+    }
+
+    // Año completo (`periodo=anio` o `periodo=todos` con `anio` sin `mes`)
+    if (periodo === "anio" || (params.anio !== undefined && periodo === "todos")) {
+      const anio = params.anio!;
+      const { inicioUtc, finUtc } = getRangoAnioUtc(anio);
+      return {
+        periodoEfectivo: periodo === "anio" ? "anio" : "todos",
+        inicioUtc,
+        finUtc: finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : finUtc,
+      };
+    }
+
+    if (periodo === "todos") {
+      return {
+        periodoEfectivo: "todos",
+        finUtc: params.soloEliminados ? undefined : finHoyUtc,
+      };
+    }
+
+    return {
+      periodoEfectivo: "ultimos",
+    };
+  }
+
+  /**
+   * Construye la condición Prisma `where` unificada tanto para `getFilasInspeccion` como para `exportarFilasInspeccion`.
+   */
+  private construirWhereFilasInspeccion(params: FiltrosBaseInspeccionesParams): {
+    where: Record<string, unknown>;
+    periodo: ModalidadPeriodoInspeccion;
+  } {
+    this.validarAlcanceDepartamental(params);
+
     const where: Record<string, unknown> = {
       eliminadoEn: params.soloEliminados ? { not: null } : null,
       inspeccion: {},
@@ -1215,7 +1407,17 @@ export class InspeccionesService {
 
     const andConditions: any[] = [];
 
-    // 1. Filtro por departamento auditor, responsable o unificado
+    // 1. Restricción de alcance departamental si el usuario tiene departamentos acotados
+    if (params.departamentosPermitidosIds && params.departamentosPermitidosIds.length > 0) {
+      andConditions.push({
+        OR: [
+          { inspeccion: { departamentoAuditoriaId: { in: params.departamentosPermitidosIds } } },
+          { defDeptoId: { in: params.departamentosPermitidosIds } },
+        ],
+      });
+    }
+
+    // 2. Filtro explícito por departamento auditor, responsable o unificado
     if (params.departamentoId) {
       andConditions.push({
         OR: [
@@ -1234,7 +1436,7 @@ export class InspeccionesService {
     }
 
     if (params.clasificacion) {
-      where.defecto = { ...(where.defecto as any || {}), clasificacion: params.clasificacion };
+      where.defecto = { ...((where.defecto as any) || {}), clasificacion: params.clasificacion };
     }
 
     if (params.lineaId) {
@@ -1263,50 +1465,16 @@ export class InspeccionesService {
       (where.inspeccion as any).terminalId = params.terminalId;
     }
 
-    // Rango explícito de fechas: tiene precedencia sobre el período/mes/año
-    const rangoExplicito = Boolean(params.fechaDesde || params.fechaHasta);
-    if (rangoExplicito) {
+    // 3. Filtro temporal con intervalos semiabiertos [inicioUtc, finUtc) en America/Mexico_City
+    const { periodoEfectivo, inicioUtc, finUtc } = this.resolverFiltroTemporalUtc(params);
+    if (inicioUtc || finUtc) {
       (where.inspeccion as any).fechaInspeccion = {
-        ...(params.fechaDesde ? { gte: params.fechaDesde } : {}),
-        ...(params.fechaHasta ? { lte: params.fechaHasta } : {}),
+        ...(inicioUtc ? { gte: inicioUtc } : {}),
+        ...(finUtc ? { lt: finUtc } : {}),
       };
     }
 
-    const periodo = rangoExplicito ? "todos" : params.periodo || "ultimos";
-
-    // 2. Filtro temporal según período (Si es soloEliminados, no aplicamos filtro temporal estricto a menos que se solicite)
-    if (!params.soloEliminados && !rangoExplicito) {
-      if (periodo === "hoy") {
-        const hoyInicio = new Date();
-        hoyInicio.setHours(0, 0, 0, 0);
-        const hoyFin = new Date();
-        hoyFin.setHours(23, 59, 59, 999);
-
-        (where.inspeccion as any).fechaInspeccion = {
-          gte: hoyInicio,
-          lte: hoyFin,
-        };
-      } else if (periodo === "todos" && (params.mes || params.anio)) {
-        const anioActual = params.anio || new Date().getFullYear();
-        let fechaInicio: Date;
-        let fechaFin: Date;
-
-        if (params.mes) {
-          fechaInicio = new Date(anioActual, params.mes - 1, 1, 0, 0, 0, 0);
-          fechaFin = new Date(anioActual, params.mes, 0, 23, 59, 59, 999);
-        } else {
-          fechaInicio = new Date(anioActual, 0, 1, 0, 0, 0, 0);
-          fechaFin = new Date(anioActual, 11, 31, 23, 59, 59, 999);
-        }
-
-        (where.inspeccion as any).fechaInspeccion = {
-          gte: fechaInicio,
-          lte: fechaFin,
-        };
-      }
-    }
-
-    // 3. Búsqueda por Lote o Clave de Defecto
+    // 4. Búsqueda por Lote, Modelo, Lista, Cliente o Defecto
     if (params.busqueda) {
       const q = params.busqueda.trim();
       const qNum = parseInt(q, 10);
@@ -1352,52 +1520,39 @@ export class InspeccionesService {
     }
 
     if (params.defectoClave) {
-      where.defecto = { ...(where.defecto as any || {}), clave: params.defectoClave };
+      where.defecto = { ...((where.defecto as any) || {}), clave: params.defectoClave };
     }
 
-    // Límite según periodo: Si es 'ultimos' (y no soloEliminados), son estrictamente los últimos 30 registros fijos
-    const take = (!params.soloEliminados && periodo === "ultimos") ? 30 : params.limit;
-    const skip = (!params.soloEliminados && periodo === "ultimos") ? 0 : (params.page - 1) * take;
+    return { where, periodo: periodoEfectivo };
+  }
 
-    const [detalles, total] = await Promise.all([
-      prisma.inspeccionDetalle.findMany({
-        where,
-        skip,
-        take,
-        orderBy: [
-          { inspeccion: { fechaInspeccion: "desc" } },
-          { id: "desc" },
-        ],
-        include: {
-          inspeccion: {
-            include: {
-              lote: true,
-              inspector: {
-                select: { id: true, usuario: true, nombre: true },
-              },
-              departamentoAuditoria: {
-                select: { id: true, codigo: true, nombre: true },
-              },
-              linea: {
-                select: { id: true, codigo: true, nombre: true },
-              },
-              terminal: {
-                select: { id: true, nombre: true },
-              },
-            },
-          },
-          defecto: {
-            select: { id: true, clave: true, defecto: true, clasificacion: true },
-          },
-          departamentoResponsable: {
-            select: { id: true, codigo: true, nombre: true },
-          },
+  private readonly includeDetalleFila = {
+    inspeccion: {
+      include: {
+        lote: true,
+        inspector: {
+          select: { id: true, usuario: true, nombre: true },
         },
-      }),
-      prisma.inspeccionDetalle.count({ where }),
-    ]);
+        departamentoAuditoria: {
+          select: { id: true, codigo: true, nombre: true },
+        },
+        linea: {
+          select: { id: true, codigo: true, nombre: true },
+        },
+        terminal: {
+          select: { id: true, nombre: true },
+        },
+      },
+    },
+    defecto: {
+      select: { id: true, clave: true, defecto: true, clasificacion: true },
+    },
+    departamentoResponsable: {
+      select: { id: true, codigo: true, nombre: true },
+    },
+  } as const;
 
-    // Obtener nombres de usuarios que eliminaron si existen registros eliminados
+  private async mapearDetallesAFilas(detalles: any[]) {
     const eliminadoresIds = Array.from(
       new Set(
         detalles
@@ -1418,8 +1573,7 @@ export class InspeccionesService {
       usuariosEliminadores.map((u) => [u.id, u.nombre || u.usuario])
     );
 
-    // Mapear al formato idéntico del sistema de inspectores
-    const items = detalles.map((d) => ({
+    return detalles.map((d) => ({
       id: d.id,
       inspeccionId: d.inspeccionId,
       folio: d.inspeccion.folio,
@@ -1441,6 +1595,7 @@ export class InspeccionesService {
       clasificacion: d.defecto.clasificacion,
       paresDefectuosos: d.paresDefectuosos,
       notas: d.notas,
+      inspectorId: d.inspeccion.inspectorId,
       usuario: d.inspeccion.inspector.nombre || d.inspeccion.inspector.usuario,
       terminal: d.inspeccion.terminal?.nombre ?? null,
       terminalId: d.inspeccion.terminal?.id ?? null,
@@ -1449,40 +1604,543 @@ export class InspeccionesService {
       eliminadoPorNombre: d.eliminadoPor ? mapEliminadores.get(d.eliminadoPor) || `Usuario #${d.eliminadoPor}` : null,
       eliminadoMotivo: d.eliminadoMotivo,
     }));
+  }
 
-    const effectiveTotal = periodo === "ultimos" ? Math.min(30, total) : total;
+  /**
+   * Consulta a nivel de cada defecto registrado (fila unitaria como en el sistema original).
+   * Soporta modalidades: 'hoy', 'ultimos', 'todos', 'anio', 'mes', 'semana', 'dia', 'rango'.
+   * Distingue explícitamente entre `total` / `totalDefectos` (incidencias) y `totalInspecciones` (sesiones de lote).
+   */
+  async getFilasInspeccion(params: GetInspeccionesParams) {
+    const { where, periodo } = this.construirWhereFilasInspeccion(params);
+
+    const esUltimos = !params.soloEliminados && periodo === "ultimos";
+    const take = esUltimos ? 30 : params.limit;
+    const skip = esUltimos ? 0 : (params.page - 1) * take;
+
+    const [detalles, total, totalInspeccionesCount] = await Promise.all([
+      prisma.inspeccionDetalle.findMany({
+        where,
+        skip,
+        take,
+        orderBy: [
+          { inspeccion: { fechaInspeccion: "desc" } },
+          { id: "desc" },
+        ],
+        include: this.includeDetalleFila,
+      }),
+      prisma.inspeccionDetalle.count({ where }),
+      esUltimos
+        ? Promise.resolve(0)
+        : prisma.inspeccionCabecera.count({
+            where: {
+              detalles: { some: where },
+            },
+          }),
+    ]);
+
+    const items = await this.mapearDetallesAFilas(detalles);
+    const effectiveTotal = esUltimos ? Math.min(30, total) : total;
+    const effectiveTotalInspecciones = esUltimos
+      ? new Set(items.map((i) => i.inspeccionId)).size
+      : totalInspeccionesCount;
 
     return {
       items,
       total: effectiveTotal,
+      totalDefectos: effectiveTotal,
+      totalInspecciones: effectiveTotalInspecciones,
       periodo,
-      page: periodo === "ultimos" ? 1 : params.page,
+      page: esUltimos ? 1 : params.page,
       limit: take,
-      totalPages: periodo === "ultimos" ? 1 : Math.ceil(total / take) || 1,
+      totalPages: esUltimos ? 1 : Math.ceil(total / take) || 1,
     };
   }
 
   /**
-   * Obtiene la lista de inspectores (usuarios que han realizado inspecciones o tienen rol de inspector/administrador)
+   * Obtiene la totalidad de los registros de defectos correspondientes a los filtros seleccionados
+   * mediante lectura paginada por lotes internos (sin truncamiento silencioso), garantizando
+   * correspondencia 1:1 entre la consulta y la exportación.
    */
-  async getInspectores() {
+  async exportarFilasInspeccion(params: FiltrosBaseInspeccionesParams) {
+    const { where, periodo } = this.construirWhereFilasInspeccion(params);
+    const esUltimos = !params.soloEliminados && periodo === "ultimos";
+
+    if (esUltimos) {
+      const detalles = await prisma.inspeccionDetalle.findMany({
+        where,
+        take: 30,
+        skip: 0,
+        orderBy: [
+          { inspeccion: { fechaInspeccion: "desc" } },
+          { id: "desc" },
+        ],
+        include: this.includeDetalleFila,
+      });
+      const items = await this.mapearDetallesAFilas(detalles);
+      const totalInspecciones = new Set(items.map((i) => i.inspeccionId)).size;
+      const totalParesDefectuosos = items.reduce((acc, i) => acc + i.paresDefectuosos, 0);
+      return {
+        items,
+        total: items.length,
+        totalDefectos: items.length,
+        totalInspecciones,
+        totalParesDefectuosos,
+        periodo,
+      };
+    }
+
+    const BATCH_SIZE = 2000;
+    const todosDetalles: any[] = [];
+    let offset = 0;
+
+    while (true) {
+      const lote = await prisma.inspeccionDetalle.findMany({
+        where,
+        skip: offset,
+        take: BATCH_SIZE,
+        orderBy: [
+          { inspeccion: { fechaInspeccion: "desc" } },
+          { id: "desc" },
+        ],
+        include: this.includeDetalleFila,
+      });
+
+      if (lote.length === 0) break;
+      todosDetalles.push(...lote);
+      if (lote.length < BATCH_SIZE) break;
+      offset += BATCH_SIZE;
+    }
+
+    const items = await this.mapearDetallesAFilas(todosDetalles);
+    const totalInspecciones = new Set(items.map((i) => i.inspeccionId)).size;
+    const totalParesDefectuosos = items.reduce((acc, i) => acc + i.paresDefectuosos, 0);
+
+    return {
+      items,
+      total: items.length,
+      totalDefectos: items.length,
+      totalInspecciones,
+      totalParesDefectuosos,
+      periodo,
+    };
+  }
+
+  /**
+   * Obtiene los periodos disponibles con registros reales en la base de datos (sin periodos vacíos ni futuros),
+   * respetando el alcance departamental, permisos y filtros de borrado lógico.
+   *
+   * Todas las agrupaciones temporales se evalúan en la zona horaria operativa `America/Mexico_City` (UTC-6)
+   * y las semanas se identifican conjuntamente mediante Año ISO + Semana ISO (`YEARWEEK(..., 3)`).
+   */
+  async getPeriodosDisponibles(params: GetPeriodosDisponiblesParams = {}) {
+    this.validarAlcanceDepartamental(params);
+
+    const partesHoy = getPartesFechaMexico();
+    const hoyStr = partesHoy.fechaStr;
+    const isoHoy = getIsoYearAndWeek(hoyStr);
+    const { finUtc: finHoyUtc } = getRangoDiaUtc(hoyStr);
+
+    const conditions: Prisma.Sql[] = [];
+
+    if (params.soloEliminados) {
+      conditions.push(Prisma.sql`d.eliminado_en IS NOT NULL`);
+    } else {
+      conditions.push(Prisma.sql`d.eliminado_en IS NULL AND c.eliminado_en IS NULL`);
+    }
+
+    // Regla crítica: nunca considerar registros con fechas futuras
+    conditions.push(Prisma.sql`c.fecha_inspeccion < ${finHoyUtc} AND c.fecha_inspeccion <= NOW()`);
+
+    // Alcance departamental del usuario
+    if (params.departamentosPermitidosIds && params.departamentosPermitidosIds.length > 0) {
+      const idsSql = Prisma.join(params.departamentosPermitidosIds);
+      conditions.push(
+        Prisma.sql`(c.departamento_auditoria_id IN (${idsSql}) OR d.def_depto_id IN (${idsSql}))`
+      );
+    }
+
+    if (params.departamentoId) {
+      conditions.push(
+        Prisma.sql`(c.departamento_auditoria_id = ${params.departamentoId} OR d.def_depto_id = ${params.departamentoId})`
+      );
+    } else {
+      if (params.departamentoAuditoriaId) {
+        conditions.push(Prisma.sql`c.departamento_auditoria_id = ${params.departamentoAuditoriaId}`);
+      }
+      if (params.departamentoResponsableId) {
+        conditions.push(Prisma.sql`d.def_depto_id = ${params.departamentoResponsableId}`);
+      }
+    }
+
+    if (params.inspectorId) {
+      conditions.push(Prisma.sql`c.inspector_id = ${params.inspectorId}`);
+    } else if (params.alcanceRestringido) {
+      const { usuarioId, departamentosIds, terminalId: termId } = params.alcanceRestringido;
+      const scopeParts: Prisma.Sql[] = [Prisma.sql`c.inspector_id = ${usuarioId}`];
+      if (departamentosIds && departamentosIds.length > 0) {
+        scopeParts.push(
+          Prisma.sql`c.departamento_auditoria_id IN (${Prisma.join(departamentosIds)})`
+        );
+      }
+      if (termId) {
+        scopeParts.push(Prisma.sql`c.terminal_id = ${termId}`);
+      }
+      conditions.push(Prisma.sql`(${Prisma.join(scopeParts, " OR ")})`);
+    }
+
+    if (params.terminalId) {
+      conditions.push(Prisma.sql`c.terminal_id = ${params.terminalId}`);
+    }
+
+    if (params.lineaId) {
+      conditions.push(Prisma.sql`c.linea_id = ${params.lineaId}`);
+    }
+
+    if (params.lineaTexto) {
+      conditions.push(Prisma.sql`c.linea_texto = ${params.lineaTexto}`);
+    }
+
+    let requiereJoinDefecto = false;
+    let requiereJoinLote = false;
+
+    if (params.clasificacion) {
+      requiereJoinDefecto = true;
+      conditions.push(Prisma.sql`def.clasificacion = ${params.clasificacion}`);
+    }
+
+    if (params.defectoClave) {
+      requiereJoinDefecto = true;
+      conditions.push(Prisma.sql`def.clave = ${params.defectoClave}`);
+    }
+
+    if (params.lote) {
+      requiereJoinLote = true;
+      const likeLote = `%${params.lote.trim()}%`;
+      conditions.push(Prisma.sql`l.lote LIKE ${likeLote}`);
+    }
+
+    if (params.busqueda) {
+      requiereJoinDefecto = true;
+      requiereJoinLote = true;
+      const q = params.busqueda.trim();
+      const likeQ = `%${q}%`;
+      const qNum = parseInt(q, 10);
+      if (!isNaN(qNum)) {
+        conditions.push(
+          Prisma.sql`(l.lote LIKE ${likeQ} OR l.modelo LIKE ${likeQ} OR l.lista LIKE ${likeQ} OR l.cliente LIKE ${likeQ} OR def.defecto LIKE ${likeQ} OR def.clave = ${qNum})`
+        );
+      } else {
+        conditions.push(
+          Prisma.sql`(l.lote LIKE ${likeQ} OR l.modelo LIKE ${likeQ} OR l.lista LIKE ${likeQ} OR l.cliente LIKE ${likeQ} OR def.defecto LIKE ${likeQ})`
+        );
+      }
+    }
+
+    const joinsSql = Prisma.sql`
+      ${requiereJoinDefecto ? Prisma.sql`INNER JOIN defectos def ON def.id = d.defecto_id` : Prisma.empty}
+      ${requiereJoinLote ? Prisma.sql`INNER JOIN produccion_lotes l ON l.id = c.lote_id` : Prisma.empty}
+    `;
+
+    const whereSql = Prisma.join(conditions, " AND ");
+
+    // 1. Consulta agrupada de años civiles, años ISO y rango global con registros reales
+    const resumenAniosRows = await prisma.$queryRaw<
+      Array<{
+        anioCivil: number | bigint;
+        anioIso: number | bigint;
+        fechaMin: string | null;
+        fechaMax: string | null;
+        totalDefectos: bigint;
+        totalInspecciones: bigint;
+      }>
+    >(Prisma.sql`
+      SELECT
+        YEAR(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR)) AS anioCivil,
+        FLOOR(YEARWEEK(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), 3) / 100) AS anioIso,
+        MIN(DATE_FORMAT(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), '%Y-%m-%d')) AS fechaMin,
+        MAX(DATE_FORMAT(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), '%Y-%m-%d')) AS fechaMax,
+        COUNT(d.id) AS totalDefectos,
+        COUNT(DISTINCT c.id) AS totalInspecciones
+      FROM inspecciones_detalle d
+      INNER JOIN inspecciones_cabecera c ON c.id = d.inspeccion_id
+      ${joinsSql}
+      WHERE ${whereSql}
+      GROUP BY anioCivil, anioIso
+      ORDER BY anioCivil DESC, anioIso DESC
+    `);
+
+    const mapAniosCiviles = new Map<number, { anio: number; totalDefectos: number; totalInspecciones: number }>();
+    const mapAniosIso = new Map<number, { anioIso: number; totalDefectos: number; totalInspecciones: number }>();
+    let fechaMinima: string | null = null;
+    let fechaMaxima: string | null = null;
+
+    for (const r of resumenAniosRows) {
+      const defCount = Number(r.totalDefectos);
+      const inspCount = Number(r.totalInspecciones);
+      if (defCount <= 0) continue;
+
+      const aCivil = Number(r.anioCivil);
+      const aIso = Number(r.anioIso);
+
+      if (aCivil <= partesHoy.anio) {
+        const prev = mapAniosCiviles.get(aCivil) || { anio: aCivil, totalDefectos: 0, totalInspecciones: 0 };
+        prev.totalDefectos += defCount;
+        prev.totalInspecciones += inspCount;
+        mapAniosCiviles.set(aCivil, prev);
+      }
+
+      if (aIso <= isoHoy.anioIso) {
+        const prevIso = mapAniosIso.get(aIso) || { anioIso: aIso, totalDefectos: 0, totalInspecciones: 0 };
+        prevIso.totalDefectos += defCount;
+        prevIso.totalInspecciones += inspCount;
+        mapAniosIso.set(aIso, prevIso);
+      }
+
+      if (r.fechaMin && (!fechaMinima || r.fechaMin < fechaMinima)) {
+        fechaMinima = r.fechaMin;
+      }
+      if (r.fechaMax) {
+        const maxCapped = r.fechaMax > hoyStr ? hoyStr : r.fechaMax;
+        if (!fechaMaxima || maxCapped > fechaMaxima) {
+          fechaMaxima = maxCapped;
+        }
+      }
+    }
+
+    const anios = Array.from(mapAniosCiviles.values()).sort((a, b) => b.anio - a.anio);
+    const aniosIso = Array.from(mapAniosIso.values()).sort((a, b) => b.anioIso - a.anioIso);
+
+    const anioSeleccionado =
+      params.anio !== undefined ? params.anio : anios[0]?.anio ?? null;
+    const anioIsoSeleccionado =
+      params.anioIso !== undefined
+        ? params.anioIso
+        : params.anio !== undefined
+        ? params.anio
+        : aniosIso[0]?.anioIso ?? null;
+
+    // 2. Consultar en paralelo los meses de `anioSeleccionado` y las semanas ISO de `anioIsoSeleccionado`
+    const promesaMeses =
+      anioSeleccionado !== null && mapAniosCiviles.has(anioSeleccionado)
+        ? (async () => {
+            const { inicioUtc, finUtc } = getRangoAnioUtc(anioSeleccionado);
+            const rows = await prisma.$queryRaw<
+              Array<{ mes: number | bigint; totalDefectos: bigint; totalInspecciones: bigint }>
+            >(Prisma.sql`
+              SELECT
+                MONTH(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR)) AS mes,
+                COUNT(d.id) AS totalDefectos,
+                COUNT(DISTINCT c.id) AS totalInspecciones
+              FROM inspecciones_detalle d
+              INNER JOIN inspecciones_cabecera c ON c.id = d.inspeccion_id
+              ${joinsSql}
+              WHERE ${whereSql}
+                AND c.fecha_inspeccion >= ${inicioUtc}
+                AND c.fecha_inspeccion < ${finUtc}
+              GROUP BY mes
+              ORDER BY mes DESC
+            `);
+
+            return rows
+              .map((r) => {
+                const mesNum = Number(r.mes);
+                const totalDefectos = Number(r.totalDefectos);
+                const totalInspecciones = Number(r.totalInspecciones);
+                const nombre = NOMBRES_MESES_ES[mesNum] || `Mes ${mesNum}`;
+                return {
+                  mes: mesNum,
+                  anio: anioSeleccionado,
+                  nombre,
+                  label: `${nombre} ${anioSeleccionado}`,
+                  totalDefectos,
+                  totalInspecciones,
+                };
+              })
+              .filter(
+                (m) =>
+                  m.totalDefectos > 0 &&
+                  !(anioSeleccionado === partesHoy.anio && m.mes > partesHoy.mes)
+              );
+          })()
+        : Promise.resolve([]);
+
+    const promesaSemanas =
+      anioIsoSeleccionado !== null && mapAniosIso.has(anioIsoSeleccionado)
+        ? (async () => {
+            const { inicioUtc, finUtc } = getRangoAnioIsoCompletoUtc(anioIsoSeleccionado);
+            const rows = await prisma.$queryRaw<
+              Array<{ yearWeekIso: number | bigint; totalDefectos: bigint; totalInspecciones: bigint }>
+            >(Prisma.sql`
+              SELECT
+                YEARWEEK(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), 3) AS yearWeekIso,
+                COUNT(d.id) AS totalDefectos,
+                COUNT(DISTINCT c.id) AS totalInspecciones
+              FROM inspecciones_detalle d
+              INNER JOIN inspecciones_cabecera c ON c.id = d.inspeccion_id
+              ${joinsSql}
+              WHERE ${whereSql}
+                AND c.fecha_inspeccion >= ${inicioUtc}
+                AND c.fecha_inspeccion < ${finUtc}
+              GROUP BY yearWeekIso
+              ORDER BY yearWeekIso DESC
+            `);
+
+            return rows
+              .map((r) => {
+                const yw = Number(r.yearWeekIso);
+                const aIso = Math.floor(yw / 100);
+                const semIso = yw % 100;
+                const totalDefectos = Number(r.totalDefectos);
+                const totalInspecciones = Number(r.totalInspecciones);
+                if (aIso !== anioIsoSeleccionado || totalDefectos <= 0) return null;
+
+                const info = getRangoSemanaIsoUtc(aIso, semIso);
+                // No mostrar semanas futuras
+                if (info.fechaInicio > hoyStr) return null;
+
+                return {
+                  anioIso: aIso,
+                  semana: semIso,
+                  codigo: info.codigo,
+                  fechaInicio: info.fechaInicio,
+                  fechaFin: info.fechaFin,
+                  label: info.label,
+                  etiqueta: info.label,
+                  totalDefectos,
+                  totalInspecciones,
+                };
+              })
+              .filter((s): s is NonNullable<typeof s> => s !== null);
+          })()
+        : Promise.resolve([]);
+
+    const [meses, semanas] = await Promise.all([promesaMeses, promesaSemanas]);
+
+    // 3. Consultar días disponibles para `(anioSeleccionado, mesSeleccionado)`
+    const mesSeleccionado =
+      params.mes !== undefined ? params.mes : meses[0]?.mes ?? null;
+
+    const dias =
+      anioSeleccionado !== null &&
+      mesSeleccionado !== null &&
+      meses.some((m) => m.mes === mesSeleccionado)
+        ? await (async () => {
+            const { inicioUtc, finUtc } = getRangoMesUtc(anioSeleccionado, mesSeleccionado);
+            const rows = await prisma.$queryRaw<
+              Array<{ fecha: string; totalDefectos: bigint; totalInspecciones: bigint }>
+            >(Prisma.sql`
+              SELECT
+                DATE_FORMAT(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), '%Y-%m-%d') AS fecha,
+                COUNT(d.id) AS totalDefectos,
+                COUNT(DISTINCT c.id) AS totalInspecciones
+              FROM inspecciones_detalle d
+              INNER JOIN inspecciones_cabecera c ON c.id = d.inspeccion_id
+              ${joinsSql}
+              WHERE ${whereSql}
+                AND c.fecha_inspeccion >= ${inicioUtc}
+                AND c.fecha_inspeccion < ${finUtc}
+              GROUP BY fecha
+              ORDER BY fecha DESC
+            `);
+
+            return rows
+              .filter((r) => Boolean(r.fecha) && r.fecha <= hoyStr && Number(r.totalDefectos) > 0)
+              .map((r) => ({
+                ...formatearDiaDisponible(r.fecha),
+                totalDefectos: Number(r.totalDefectos),
+                totalInspecciones: Number(r.totalInspecciones),
+              }));
+          })()
+        : [];
+
+    return {
+      anios,
+      aniosIso,
+      anioSeleccionado,
+      anioIsoSeleccionado,
+      mesSeleccionado,
+      meses,
+      semanas,
+      dias,
+      rangoTotal: {
+        fechaMinima,
+        fechaMaxima,
+        hoy: hoyStr,
+      },
+    };
+  }
+
+  /**
+   * Obtiene el catálogo de inspectores para los selectores de filtros:
+   * - Exclusivamente cuentas con rol `INSPECTOR` y estado `ACTIVO`.
+   * - Excluye `SUPER_ADMIN`, `ADMIN`, `COORD` y usuarios inactivos.
+   * - Respeta el alcance departamental autorizado y el filtro opcional `departamentoId`.
+   */
+  async getInspectores(params: GetInspectoresParams = {}) {
+    this.validarAlcanceDepartamental({
+      departamentoId: params.departamentoId,
+      departamentosPermitidosIds: params.departamentosPermitidosIds,
+    });
+
+    let deptosFiltroIds: number[] | undefined;
+    if (params.departamentoId) {
+      deptosFiltroIds = [params.departamentoId];
+    } else if (params.departamentosPermitidosIds && params.departamentosPermitidosIds.length > 0) {
+      deptosFiltroIds = params.departamentosPermitidosIds;
+    }
+
     const usuarios = await prisma.usuario.findMany({
       where: {
         estado: "ACTIVO",
-        OR: [
-          { rol: { codigo: { in: ["INSPECTOR", "SUPER_ADMIN", "ADMIN", "COORD"] } } },
-          { inspeccionesInspector: { some: {} } },
-        ],
+        rol: {
+          codigo: "INSPECTOR",
+          estado: "ACTIVO",
+        },
+        ...(deptosFiltroIds
+          ? {
+              departamentos: {
+                some: {
+                  departamentoId: { in: deptosFiltroIds },
+                  estado: "ACTIVO",
+                  departamento: {
+                    estado: "ACTIVO",
+                    eliminadoEn: null,
+                  },
+                },
+              },
+            }
+          : {}),
       },
       select: {
         id: true,
         nombre: true,
         usuario: true,
+        estado: true,
         rol: {
           select: {
             id: true,
             codigo: true,
             nombre: true,
+          },
+        },
+        departamentos: {
+          where: {
+            estado: "ACTIVO",
+            departamento: {
+              estado: "ACTIVO",
+              eliminadoEn: null,
+            },
+          },
+          select: {
+            departamentoId: true,
+            departamento: {
+              select: {
+                id: true,
+                codigo: true,
+                nombre: true,
+              },
+            },
           },
         },
       },

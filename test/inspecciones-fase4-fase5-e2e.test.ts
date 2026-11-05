@@ -325,7 +325,7 @@ describe("Fases 4 y 5 E2E: Captura operativa, historial y trazabilidad", () => {
         "fechaDesde=2026-13-45",
         "fechaDesde=hoy",
         "fechaDesde=2026-10-10&fechaHasta=2026-10-01",
-        "fechaDesde=2020-01-01&fechaHasta=2026-01-01",
+        "fechaDesde=2099-01-01&fechaHasta=2099-01-02",
         "limit=1000",
         "page=0",
         "terminalId=abc",

@@ -11,6 +11,7 @@ import { terminalsService } from "../auth/services/terminals.service";
  */
 export interface AlcanceHistorial {
   general: boolean;
+  rolCodigo: string;
   puedeVerEliminados: boolean;
   puedeVerTrazabilidad: boolean;
   departamentosAlcanceIds: number[];
@@ -67,6 +68,7 @@ export const resolverAlcanceHistorial = async (
 
     res.locals.alcanceHistorial = {
       general,
+      rolCodigo: efectivos.rolCodigo,
       puedeVerEliminados: eliminar,
       puedeVerTrazabilidad: auditar,
       departamentosAlcanceIds: Array.from(deptoSet),

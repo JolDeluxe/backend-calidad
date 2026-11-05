@@ -88,48 +88,90 @@ export class InspeccionesController {
     }
   }
 
+  private construirParametrosBaseFiltro(q: Record<string, any>, req: Request, alcance: AlcanceHistorial) {
+    if (q.soloEliminados && !alcance.puedeVerEliminados) {
+      throw new ForbiddenError("Acceso denegado: falta el permiso 'defectos.eliminar' para ver registros eliminados");
+    }
+
+    const departamentosPermitidosIds =
+      alcance.general && alcance.rolCodigo !== "SUPER_ADMIN" && alcance.departamentosAlcanceIds.length > 0
+        ? alcance.departamentosAlcanceIds
+        : undefined;
+
+    return {
+      periodo: q.periodo || "ultimos",
+      busqueda: q.busqueda || undefined,
+      lote: q.lote || undefined,
+      defectoClave: q.defectoClave,
+      departamentoId: q.departamentoId,
+      departamentoAuditoriaId: q.departamentoAuditoriaId,
+      departamentoResponsableId: q.departamentoResponsableId,
+      clasificacion: q.clasificacion,
+      lineaId: q.lineaId,
+      lineaTexto: q.lineaTexto || undefined,
+      // Con alcance general, se permite filtrar opcionalmente por cualquier inspector;
+      // sin alcance general, el usuario ve sus registros propios MÁS los de su estación/departamento autorizado.
+      inspectorId: alcance.general ? q.inspectorId : undefined,
+      alcanceRestringido: alcance.general
+        ? undefined
+        : {
+            usuarioId: req.user!.usuarioId,
+            departamentosIds: alcance.departamentosAlcanceIds,
+            terminalId: req.terminal?.id,
+          },
+      departamentosPermitidosIds,
+      terminalId: q.terminalId,
+      dia: q.dia || undefined,
+      semana: q.semana,
+      anioIso: q.anioIso,
+      mes: q.mes,
+      anio: q.anio,
+      fechaDesde: q.fechaDesde || undefined,
+      fechaHasta: q.fechaHasta || undefined,
+      soloEliminados: q.soloEliminados === true,
+    };
+  }
+
   async getFilasInspeccion(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       // `req.query` ya fue validado y normalizado por getInspeccionesQuerySchema
       const q = req.query as unknown as Record<string, any>;
       const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
-
-      if (q.soloEliminados && !alcance.puedeVerEliminados) {
-        throw new ForbiddenError("Acceso denegado: falta el permiso 'defectos.eliminar' para ver registros eliminados");
-      }
+      const baseParams = this.construirParametrosBaseFiltro(q, req, alcance);
 
       const resultado = await inspeccionesService.getFilasInspeccion({
-        periodo: q.periodo || "ultimos",
-        busqueda: q.busqueda || undefined,
-        lote: q.lote || undefined,
-        defectoClave: q.defectoClave,
-        departamentoId: q.departamentoId,
-        departamentoAuditoriaId: q.departamentoAuditoriaId,
-        departamentoResponsableId: q.departamentoResponsableId,
-        clasificacion: q.clasificacion,
-        lineaId: q.lineaId,
-        lineaTexto: q.lineaTexto || undefined,
-        // Con alcance general, se permite filtrar opcionalmente por cualquier inspector;
-        // sin alcance general, el usuario ve sus registros propios MÁS los de su estación/departamento autorizado.
-        inspectorId: alcance.general ? q.inspectorId : undefined,
-        alcanceRestringido: alcance.general
-          ? undefined
-          : {
-              usuarioId: req.user!.usuarioId,
-              departamentosIds: alcance.departamentosAlcanceIds,
-              terminalId: req.terminal?.id,
-            },
-        terminalId: q.terminalId,
-        fechaDesde: q.fechaDesde ? new Date(`${q.fechaDesde}T00:00:00.000Z`) : undefined,
-        fechaHasta: q.fechaHasta ? new Date(`${q.fechaHasta}T23:59:59.999Z`) : undefined,
-        mes: q.mes,
-        anio: q.anio,
-        soloEliminados: q.soloEliminados === true,
+        ...baseParams,
         page: q.page || 1,
         limit: q.limit || 30,
       });
 
       sendSuccess(res, resultado, "Filas de inspección recuperadas exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportarFilasInspeccion(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const q = req.query as unknown as Record<string, any>;
+      const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
+      const baseParams = this.construirParametrosBaseFiltro(q, req, alcance);
+
+      const resultado = await inspeccionesService.exportarFilasInspeccion(baseParams);
+      sendSuccess(res, resultado, "Datos de exportación recuperados exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getPeriodosDisponibles(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const q = req.query as unknown as Record<string, any>;
+      const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
+      const baseParams = this.construirParametrosBaseFiltro(q, req, alcance);
+
+      const resultado = await inspeccionesService.getPeriodosDisponibles(baseParams);
+      sendSuccess(res, resultado, "Periodos disponibles recuperados exitosamente");
     } catch (error) {
       next(error);
     }
@@ -156,10 +198,20 @@ export class InspeccionesController {
     }
   }
 
-  async getInspectores(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getInspectores(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const inspectores = await inspeccionesService.getInspectores();
-      sendSuccess(res, inspectores, "Inspectores recuperados exitosamente");
+      const q = req.query as unknown as Record<string, any>;
+      const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
+      const departamentosPermitidosIds =
+        alcance.rolCodigo !== "SUPER_ADMIN" && alcance.departamentosAlcanceIds.length > 0
+          ? alcance.departamentosAlcanceIds
+          : undefined;
+
+      const inspectores = await inspeccionesService.getInspectores({
+        departamentoId: q.departamentoId,
+        departamentosPermitidosIds,
+      });
+      sendSuccess(res, inspectores, "Inspectores activos recuperados exitosamente");
     } catch (error) {
       next(error);
     }
