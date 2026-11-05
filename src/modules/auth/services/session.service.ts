@@ -330,6 +330,103 @@ export class SessionService {
 
     return sesion;
   }
+
+  /**
+   * Canjea un token offline firmado legítimo (emitido dentro de las 48h anteriores)
+   * por una sesión online completa en MySQL con cookie de sesión y accessToken.
+   * Exige que la estación física vinculada esté activa.
+   */
+  async exchangeOfflineToken(
+    usuarioId: number,
+    terminalId: number,
+    ipOrigen?: string,
+    agenteUsuario?: string,
+  ): Promise<LoginResult> {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      include: { rol: true },
+    });
+
+    if (!usuario || usuario.estado !== "ACTIVO") {
+      throw new UnauthorizedError("El usuario de la autorización offline se encuentra inactivo");
+    }
+
+    const refreshToken = securityService.generateRefreshToken();
+    const refreshTokenHash = securityService.hashRefreshToken(refreshToken);
+
+    const now = new Date();
+    const fechaExpiracion = new Date(now.getTime() + env.SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+    const sesionCreada = await prisma.$transaction(async (tx) => {
+      const sesion = await tx.sesion.create({
+        data: {
+          usuarioId: usuario.id,
+          refreshTokenHash,
+          estado: "ACTIVO",
+          fechaExpiracion,
+          fechaUltimoUso: now,
+          fechaUltimaExtension: now,
+          ipOrigen: ipOrigen?.slice(0, 45),
+          agenteUsuario: agenteUsuario?.slice(0, 255),
+        },
+      });
+
+      await auditService.registrarEvento(
+        {
+          accion: "LOGIN_RECONEXION_OFFLINE",
+          modulo: "AUTENTICACION_OFFLINE",
+          entidad: "sesion",
+          entidadId: String(sesion.id),
+          descripcion: `Transición automática a sesión online para inspector '${usuario.usuario}' en terminal #${terminalId} al recuperar conectividad`,
+          resultado: "EXITOSO",
+          valoresPosteriores: {
+            sesionId: sesion.id,
+            usuarioId: usuario.id,
+            usuario: usuario.usuario,
+            terminalId,
+            fechaExpiracion: sesion.fechaExpiracion,
+          },
+          contexto: {
+            usuarioId: usuario.id,
+            usuarioNombre: usuario.usuario,
+            rolCodigo: usuario.rol.codigo,
+            terminalId,
+            ipOrigen,
+            agenteUsuario,
+          },
+        },
+        tx
+      );
+
+      return sesion;
+    });
+
+    const tokenPayload: TokenPayload = {
+      usuarioId: usuario.id,
+      usuario: usuario.usuario,
+      nombre: usuario.nombre,
+      rolId: usuario.rol.id,
+      rolCodigo: usuario.rol.codigo,
+      sesionId: sesionCreada.id,
+    };
+
+    const accessToken = securityService.generateAccessToken(tokenPayload);
+
+    return {
+      usuario: {
+        id: usuario.id,
+        usuario: usuario.usuario,
+        nombre: usuario.nombre,
+        rol: {
+          id: usuario.rol.id,
+          codigo: usuario.rol.codigo,
+          nombre: usuario.rol.nombre,
+        },
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
 }
 
 export const sessionService = new SessionService();

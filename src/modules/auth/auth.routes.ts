@@ -2,7 +2,7 @@ import { Router } from "express";
 import { sessionController } from "./controllers/session.controller";
 import { validate } from "../../middlewares/validate";
 import { authenticate, requireTerminal, requireRole } from "../../middlewares/auth";
-import { loginSchema } from "./auth.schema";
+import { loginSchema, exchangeOfflineTokenSchema } from "./auth.schema";
 import { offlineAuthService } from "./services/offline-auth.service";
 import { sendSuccess } from "../../utils/response";
 import { auditService } from "../audit/services/audit.service";
@@ -14,6 +14,18 @@ router.post(
   "/login",
   validate({ body: loginSchema }),
   (req, res, next) => sessionController.login(req, res, next),
+);
+
+/**
+ * Canje transparente de token offline válido por una sesión online en MySQL.
+ * Se invoca automáticamente cuando una estación en modo offline recupera conectividad.
+ * Requiere terminal física vinculada y token offline firmado válido.
+ */
+router.post(
+  "/exchange-offline-token",
+  requireTerminal,
+  validate({ body: exchangeOfflineTokenSchema }),
+  (req, res, next) => sessionController.exchangeOfflineToken(req, res, next),
 );
 
 /**

@@ -83,6 +83,54 @@ export class SessionController {
       next(error);
     }
   }
+
+  async exchangeOfflineToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const terminal = req.terminal!;
+      const { offlineToken } = req.body;
+      const { offlineAuthService } = await import("../services/offline-auth.service");
+
+      const payload = offlineAuthService.verifyOfflineToken(offlineToken);
+
+      // Verificar que el token offline pertenezca a la misma terminal física
+      if (payload.terminalId !== terminal.id) {
+        res.status(401).json({
+          success: false,
+          message: "El token offline no corresponde a la terminal física vinculada",
+        });
+        return;
+      }
+
+      const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
+      const userAgent = req.headers["user-agent"];
+
+      const result = await sessionService.exchangeOfflineToken(
+        payload.sub,
+        terminal.id,
+        ip,
+        userAgent,
+      );
+
+      res.cookie(env.SESSION_COOKIE_NAME, result.refreshToken, {
+        httpOnly: env.SESSION_COOKIE_HTTP_ONLY,
+        secure: env.SESSION_COOKIE_SECURE,
+        sameSite: env.SESSION_COOKIE_SAME_SITE,
+        maxAge: env.SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000,
+        path: "/",
+      });
+
+      sendSuccess(
+        res,
+        {
+          usuario: result.usuario,
+          accessToken: result.accessToken,
+        },
+        "Sesión en línea activada automáticamente desde credencial offline",
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const sessionController = new SessionController();
