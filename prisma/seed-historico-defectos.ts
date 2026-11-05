@@ -90,9 +90,9 @@ function normalizarLineaTexto(val: string): string {
 function resolverDirectorioHistorico(archivosRequeridos: string[]): DirectorioValido {
   const candidateDirs = [
     process.env.HISTORICO_DEFECTOS_DIR,
+    'H:\\CALIDAD\\App\\Quality System\\DataBase',
     'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Documentacion\\DtaosBse',
     'C:\\Users\\MBCPROEW10028\\Downloads\\DtaosBse',
-    'H:\\CALIDAD\\App\\Quality System\\DataBase',
     '\\\\200.1.1.58\\usuariosmbc\\CALIDAD\\App\\Quality System\\DataBase',
     '\\\\GC-SRV-ARCHI-01.gc.com\\USUARIOSMBC\\CALIDAD\\App\\Quality System\\DataBase',
   ].filter((p): p is string => Boolean(p));
@@ -161,15 +161,16 @@ async function main() {
   console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
 
   const files = [
-    // Archivos de defectos activos
-    'Defectos_corte.txt',
-    'Defectos_Preliminares.txt',
-    'Defectos_Bordado.txt',
-    'Defectos_Pespunte.txt',
-    'Defectos_Montado.txt',
+    // Archivos de defectos activos (9 archivos)
+    'Df_Ado.txt',
     'Defectos_Acabado.txt',
     'Defectos_Adorno.txt',
     'Defectos_Avios.txt',
+    'Defectos_Bordado.txt',
+    'Defectos_corte.txt',
+    'Defectos_Montado.txt',
+    'Defectos_Pespunte.txt',
+    'Defectos_Preliminares.txt',
   ];
 
   // Resolver directorio comprobando existencia real de archivos y tamaño > 0
@@ -230,6 +231,7 @@ async function main() {
       ['Defectos_Acabado.txt', deptoMap.get('ACABADO') || 6],
       ['Defectos_Avios.txt', deptoMap.get('AVIOS') || 7],
       ['Defectos_Adorno.txt', deptoMap.get('ADORNO') || 11],
+      ['Df_Ado.txt', deptoMap.get('ADORNO') || 11],
     ]);
 
     const defaultDeptoId = deptoMap.get('CORTE') || departamentosDB[0].id;
@@ -256,11 +258,16 @@ async function main() {
     userMap.set('YOLANDA FLOR', yolandaId);
     userMap.set('ULISES MORENO', ulisesId);
     userMap.set('ULISES ISRAEL MORENO GALLEGOS', ulisesId);
+    // Inspector de Df_Ado.txt (se asigna a Wendy Lizbeth Sánchez como inspectora de Adorno o al inspector encontrado)
+    const adornoInspectorId = userMap.get('WENDY LIZBETH SANCHEZ') || superAdminId;
+    userMap.set('FERNANDO MENDOZA', adornoInspectorId);
 
-    // Mapeos de Defectos por clave
+    // Mapeos de Defectos por clave y por nombre normalizado
     const defectoClaveMap = new Map<number, { id: number; departamentoId: number }>();
+    const defectoNombreMap = new Map<string, { id: number; departamentoId: number; clave: number }>();
     for (const d of defectosDB) {
       defectoClaveMap.set(d.clave, { id: d.id, departamentoId: d.departamentoId });
+      defectoNombreMap.set(normalizarTexto(d.defecto), { id: d.id, departamentoId: d.departamentoId, clave: d.clave });
     }
 
     // 2. Parsear los 8 archivos activos de defectos ANTES de tocar la base de datos
@@ -279,6 +286,7 @@ async function main() {
       const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
       const isEliminado = file.startsWith('Eliminados_');
       const isAviosDefectos = (file === 'Defectos_Avios.txt');
+      const isDfAdo = (file === 'Df_Ado.txt');
 
       for (let i = 0; i < lines.length; i++) {
         const parts = lines[i].split('\t').map(p => p.trim());
@@ -299,7 +307,32 @@ async function main() {
         let horma = '';
         let usuarioTexto = '';
 
-        if (isAviosDefectos) {
+        if (isDfAdo) {
+          // Estructura de Df_Ado.txt (parts[0] viene vacío, sin 'No')
+          // [1]=ADORNO, [2]=Fecha, [3]=Lista, [4]=Lote, [5]=Linea, [6]=Modelo, [7]=Desc, [8]=DefDepto, [9]=Id, [10]=Defecto, [11]=Prs, [12]=Horma, [13]=Usuario
+          noOriginal = `ADO-${i}`;
+          deptoAuditoriaTexto = parts[1] || 'ADORNO';
+          fechaTexto = parts[2] || '';
+          lista = parts[3] || 'N/A';
+          lote = parts[4] || (parts[6] ? `LOTE-${parts[6]}` : 'SIN_LOTE');
+          lineaTexto = parts[5] || 'L1';
+          modelo = parts[6] || 'N/A';
+          descripcion = parts[7] || '';
+          defDeptoTexto = parts[8] || 'ADORNO';
+          defectoClave = parseInt(parts[9], 10) || 0;
+          defectoNombre = parts[10] ? parts[10].replace(/^["']+|["']+$/g, '').trim() : '';
+          pares = parseInt(parts[11], 10) || 1;
+          horma = parts[12] || '';
+          usuarioTexto = parts[13] || 'Fernando Mendoza';
+
+          // Si no tiene clave numérica, buscar por nombre de defecto en catálogo
+          if (!defectoClave && defectoNombre) {
+            const defMatch = defectoNombreMap.get(normalizarTexto(defectoNombre));
+            if (defMatch) {
+              defectoClave = defMatch.clave;
+            }
+          }
+        } else if (isAviosDefectos) {
           // En Defectos_Avios.txt la columna Linea fue omitida o desplazada
           lineaTexto = 'ACCESORIO';
           modelo = parts[5] || 'N/A';
