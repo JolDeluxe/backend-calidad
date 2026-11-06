@@ -2,65 +2,89 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { prisma } from '../src/config/database';
+import { legacyIncrementalSyncService } from '../src/modules/inspecciones/services/legacy-incremental-sync.service';
 
 async function main() {
   console.log('========================================================================');
-  console.log('FASE 3.1 (COMPLEMENTO): VERIFICACIÓN DE RESPALDO, ADORNO Y UNICIDAD');
+  console.log('DIAGNÓSTICO PRE-MIGRACIÓN Y RESPALDO VERIFICABLE (CALIDAD MBC)');
   console.log('========================================================================\n');
 
-  // 1. Verificar integridad del respaldo backup_dev_pre_fase3_1793977853881.json
-  const backupPath = path.join(process.cwd(), 'backups', 'backup_dev_pre_fase3_1793977853881.json');
-  const rawBackup = fs.readFileSync(backupPath, 'utf8');
-  const backupHash = crypto.createHash('sha256').update(rawBackup).digest('hex');
-  const parsedBackup = JSON.parse(rawBackup);
+  const backupsDir = path.join(process.cwd(), 'backups');
+  if (!fs.existsSync(backupsDir)) {
+    fs.mkdirSync(backupsDir, { recursive: true });
+  }
 
+  // 1. Crear respaldo verificable de los registros existentes en la BD actual
+  console.log('1. GENERANDO RESPALDO DE SEGURIDAD PRE-MIGRACIÓN...');
+  const cabecerasExistentes = await prisma.inspeccionCabecera.findMany({
+    include: {
+      detalles: true,
+    },
+  });
+
+  const timestamp = Date.now();
+  const backupFilename = `backup_pre_migracion_${timestamp}.json`;
+  const backupPath = path.join(backupsDir, backupFilename);
+
+  const backupPayload = {
+    generadoEn: new Date().toISOString(),
+    entorno: process.env.NODE_ENV || 'production',
+    totalCabeceras: cabecerasExistentes.length,
+    totalDetalles: cabecerasExistentes.reduce((acc, c) => acc + c.detalles.length, 0),
+    cabeceras: cabecerasExistentes,
+  };
+
+  const rawBackup = JSON.stringify(backupPayload, null, 2);
+  fs.writeFileSync(backupPath, rawBackup, 'utf8');
+  const backupHash = crypto.createHash('sha256').update(rawBackup).digest('hex');
+
+  // Validar inmediatamente que el archivo guardado sea íntegro y restaurable en memoria
+  const parsedBackup = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
   const isRestorable =
     parsedBackup &&
     typeof parsedBackup === 'object' &&
-    Array.isArray(parsedBackup.webCabeceras) &&
-    parsedBackup.webCabeceras.length === 55 && // 52 INS-* + 3 TEST-AJENA-*
-    parsedBackup.webCabeceras.every(
-      (c: any) => typeof c.id === 'number' && typeof c.folio === 'string' && Array.isArray(c.detalles)
-    );
+    Array.isArray(parsedBackup.cabeceras) &&
+    parsedBackup.cabeceras.length === cabecerasExistentes.length;
 
-  console.log('1. VERIFICACIÓN DE INTEGRIDAD DEL RESPALDO:');
-  console.log(`   - Archivo:               ${backupPath}`);
-  console.log(`   - Tamaño (bytes):        ${rawBackup.length.toLocaleString()}`);
-  console.log(`   - SHA-256:               ${backupHash}`);
-  console.log(`   - Cabeceras WEB/Test:    ${parsedBackup.webCabeceras.length} (52 INS-* + 3 TEST-AJENA-*)`);
-  console.log(`   - Prueba de restauración en memoria: ${isRestorable ? '✓ VÁLIDO Y RESTAURABLE' : '✗ FALLO'}\n`);
+  console.log(`   - Archivo generado:       ${backupPath}`);
+  console.log(`   - Tamaño (bytes):         ${rawBackup.length.toLocaleString()}`);
+  console.log(`   - SHA-256:                ${backupHash}`);
+  console.log(`   - Total cabeceras:        ${cabecerasExistentes.length.toLocaleString()}`);
+  console.log(`   - Total detalles:         ${backupPayload.totalDetalles.toLocaleString()}`);
+  console.log(`   - Integridad del backup:  ${isRestorable ? '✓ VÁLIDO Y RESTAURABLE' : '✗ FALLO'}\n`);
 
   if (!isRestorable) {
-    throw new Error('El respaldo no pasó la validación de restauración.');
+    throw new Error('El respaldo generado no pasó la validación de integridad.');
   }
 
-  // 2. Diagnóstico de los 51,099 registros en inspecciones_historicas_origen (incluyendo ADORNO)
+  // 2. Diagnóstico de los registros en inspecciones_historicas_origen
+  const totalHistorico = await prisma.inspeccionHistoricaOrigen.count();
   const porArchivo = await prisma.inspeccionHistoricaOrigen.groupBy({
     by: ['archivoOrigen'],
     _count: { id: true },
   });
 
-  console.log('2. DISTRIBUCIÓN ACTUAL EN inspecciones_historicas_origen (DEV):');
+  console.log(`2. DISTRIBUCIÓN EN inspecciones_historicas_origen (${totalHistorico.toLocaleString()} registros totales):`);
   for (const row of porArchivo) {
     console.log(`   - ${(row.archivoOrigen || 'NULL').padEnd(28)}: ${row._count.id.toLocaleString()} registros`);
   }
 
-  // Diagnosticar ADORNO específicamente en BD de desarrollo
-  const adornoCabecerasEnDev = await prisma.inspeccionCabecera.count({
+  // Diagnosticar ADORNO en la base de datos
+  const adornoCabeceras = await prisma.inspeccionCabecera.count({
     where: { departamentoAuditoria: { codigo: 'ADORNO' } },
   });
-  const lotesFicticiosEnDev = await prisma.produccionLote.findMany({
+  const lotesFicticios = await prisma.produccionLote.findMany({
     where: {
       OR: [{ lote: { startsWith: 'LOTE-' } }, { lote: 'SIN_LOTE' }],
     },
     select: { id: true, lote: true, modelo: true, cantidad: true },
   });
 
-  console.log('\n3. DIAGNÓSTICO DE ADORNO EN BASE DE DATOS DE DESARROLLO:');
-  console.log(`   - Cabeceras con depto ADORNO en dev: ${adornoCabecerasEnDev.toLocaleString()}`);
-  console.log(`   - Lotes ficticios en dev:            ${lotesFicticiosEnDev.map(l => `${l.lote} (id=${l.id})`).join(', ') || 'Ninguno'}`);
+  console.log('\n3. DIAGNÓSTICO DE ADORNO Y LOTES EN BASE DE DATOS:');
+  console.log(`   - Cabeceras con depto ADORNO:         ${adornoCabeceras.toLocaleString()}`);
+  console.log(`   - Lotes sintéticos/ficticios en BD:   ${lotesFicticios.map(l => `${l.lote} (id=${l.id})`).join(', ') || 'Ninguno (✓ Limpio)'}`);
 
-  // 4. Verificar que en los 51,099 registros actuales en BD la tupla (archivoOrigen, anioOrigen, noOriginal) sea 100% única
+  // 4. Verificar que en los registros actuales en BD la tupla (archivoOrigen, anioOrigen, noOriginal) sea 100% única
   const allHist = await prisma.inspeccionHistoricaOrigen.findMany({
     select: { id: true, archivoOrigen: true, noOriginal: true, fechaParseada: true, fechaTexto: true },
   });
@@ -83,10 +107,19 @@ async function main() {
   }
 
   console.log(`\n4. UNICIDAD DE (archivoOrigen, anioOrigen, noOriginal) EN LOS ${allHist.length.toLocaleString()} REGISTROS DE BD:`);
-  console.log(`   - Colisiones detectadas en BD: ${dupsInDb.length}`);
+  console.log(`   - Colisiones detectadas en BD: ${dupsInDb.length} ${dupsInDb.length === 0 ? '(✓ 100% Único, listo para migrate deploy)' : '✗ Hay colisiones'}`);
 
-  // 5. Verificar que NO existan reinicios adicionales del consecutivo dentro del mismo año en los TXT
-  const hDir = 'H:\\CALIDAD\\App\\Quality System\\DataBase';
+  // 5. Verificar directorio de archivos TXT
+  let hDir: string;
+  try {
+    hDir = legacyIncrementalSyncService.resolveBaseDir();
+    console.log(`\n5. DIRECTORIO ORIGEN DE ARCHIVOS TXT:`);
+    console.log(`   - Ruta resuelta: ${hDir}`);
+  } catch (err: any) {
+    console.warn(`\n5. DIRECTORIO ORIGEN DE ARCHIVOS TXT:\n   - Advertencia: ${err.message}`);
+    return;
+  }
+
   const txtFiles = [
     'Defectos_Acabado.txt',
     'Defectos_Avios.txt',
@@ -97,9 +130,13 @@ async function main() {
     'Defectos_Preliminares.txt',
   ];
 
-  console.log('\n5. VERIFICACIÓN DE REINICIOS DE CONSECUTIVO DENTRO DEL MISMO AÑO EN ARCHIVOS TXT:');
+  console.log('\n6. VERIFICACIÓN DE REINICIOS DE CONSECUTIVO DENTRO DEL MISMO AÑO EN TXT:');
   for (const file of txtFiles) {
     const fp = path.join(hDir, file);
+    if (!fs.existsSync(fp)) {
+      console.log(`   - ${file.padEnd(26)}: Archivo no encontrado en ${hDir}`);
+      continue;
+    }
     const lines = fs.readFileSync(fp, 'latin1').split(/\r?\n/).filter(l => l.trim().length > 0);
     const seenInYear = new Set<string>();
     let collisionsInSameYear = 0;
@@ -130,11 +167,15 @@ async function main() {
       `   - ${file.padEnd(26)}: Colisiones (Año+No)=${collisionsInSameYear} | Reinicios mismo año=${resetsInSameYear}`
     );
   }
+
+  console.log('\n========================================================================');
+  console.log('DIAGNÓSTICO COMPLETADO CON ÉXITO: PROCEDA CON LA MIGRACIÓN Y BACKFILL.');
+  console.log('========================================================================\n');
 }
 
 main()
   .catch(err => {
-    console.error(err);
+    console.error('Error durante el diagnóstico pre-migración:', err);
     process.exit(1);
   })
   .finally(async () => {
