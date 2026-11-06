@@ -394,13 +394,19 @@ export class InspeccionesService {
       }
     }
 
+    let totalDefectosCruzados = 0;
+    let totalParesCruzados = 0;
+    for (const r of mapaRutasCruzadas.values()) {
+      totalDefectosCruzados += r.defectos;
+      totalParesCruzados += r.pares;
+    }
+
     const rutasCruzadas = Array.from(mapaRutasCruzadas.values())
       .sort((a, b) => b.defectos - a.defectos)
-      .slice(0, 8);
+      .slice(0, 12);
 
     const defectosCruzados = Array.from(mapaDefectosCruzados.values())
-      .sort((a, b) => b.defectos - a.defectos)
-      .slice(0, 10);
+      .sort((a, b) => b.defectos - a.defectos);
 
     const topSemanal: Record<string, Array<{
       clave: number;
@@ -432,6 +438,9 @@ export class InspeccionesService {
       contadoresDeptoHoy,
       rutasCruzadas,
       defectosCruzados,
+      totalDefectosCruzados,
+      totalParesCruzados,
+      totalTiposCruzados: mapaDefectosCruzados.size,
       topSemanal,
     };
   }
