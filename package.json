@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "sync:legacy": "bun scripts/sync-legacy-incremental.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:integration": "tsc --project tsconfig.integration.json --noEmit",
     "test": "bun scripts/run-backend-tests.ts",
@@ -25,6 +26,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
+    "@types/node-cron": "^3.0.11",
     "pino-pretty": "^13.2.0",
     "prisma": "^7.10.1",
     "typescript": "^5.9.3"
@@ -39,6 +41,7 @@
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.3.0",
     "mariadb": "^3.5.4",
+    "node-cron": "^4.6.0",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
     "zod": "^3.25.76"

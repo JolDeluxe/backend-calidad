@@ -9,6 +9,7 @@ import { categoriasDepartamentoRouter } from "../modules/categorias-departamento
 import { defectosRouter } from "../modules/defectos/defectos.routes";
 import { lotesRouter } from "../modules/lotes/lotes.routes";
 import { inspeccionesRouter } from "../modules/inspecciones/inspecciones.routes";
+import { legacySyncAdminRouter } from "../modules/inspecciones/legacy-sync.routes";
 import { proyeccionRouter } from "../modules/proyeccion/proyeccion.routes";
 
 const router = Router();
@@ -25,6 +26,7 @@ router.use("/categorias-departamento", categoriasDepartamentoRouter);
 router.use("/defectos", defectosRouter);
 router.use("/lotes", lotesRouter);
 router.use("/inspecciones", inspeccionesRouter);
+router.use("/admin/legacy-sync", legacySyncAdminRouter);
 router.use("/proyeccion", proyeccionRouter);
 
 export const v1Router = router;

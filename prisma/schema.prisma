@@ -591,6 +591,13 @@ enum EstadoInspeccion {
   @@map("estado_inspeccion")
 }
 
+enum ProcedenciaRegistro {
+  WEB
+  LEGACY
+
+  @@map("procedencia_registro")
+}
+
 model InspeccionCabecera {
   id                      Int                 @id @default(autoincrement())
   folio                   String              @unique @db.VarChar(30)
@@ -604,6 +611,7 @@ model InspeccionCabecera {
   claveIdempotencia       String?             @map("clave_idempotencia") @db.VarChar(64)
   fechaInspeccion         DateTime            @default(now()) @map("fecha_inspeccion")
   estado                  EstadoInspeccion    @default(PENDIENTE)
+  procedencia             ProcedenciaRegistro @default(WEB)
   notas                   String?             @db.VarChar(500)
   creadoPor               Int?                @map("creado_por")
   fechaCreacion           DateTime            @default(now()) @map("fecha_creacion")
@@ -632,28 +640,31 @@ model InspeccionCabecera {
   @@index([lineaId])
   @@index([fechaInspeccion])
   @@index([estado])
+  @@index([procedencia])
   @@index([eliminadoEn])
   @@map("inspecciones_cabecera")
 }
 
 model InspeccionDetalle {
-  id                  Int                @id @default(autoincrement())
-  inspeccionId        Int                @map("inspeccion_id")
-  defectoId           Int                @map("defecto_id")
-  defDeptoId          Int                @map("def_depto_id")
-  paresDefectuosos    Int                @default(1) @map("pares_defectuosos")
-  notas               String?            @db.VarChar(255)
-  creadoPor           Int?               @map("creado_por")
-  fechaCreacion       DateTime           @default(now()) @map("fecha_creacion")
-  actualizadoPor      Int?               @map("actualizado_por")
-  fechaActualizacion  DateTime           @updatedAt @map("fecha_actualizacion")
-  eliminadoPor        Int?               @map("eliminado_por")
-  eliminadoEn         DateTime?          @map("eliminado_en")
-  eliminadoMotivo     String?            @map("eliminado_motivo") @db.VarChar(255)
+  id                  Int                        @id @default(autoincrement())
+  inspeccionId        Int                        @map("inspeccion_id")
+  defectoId           Int                        @map("defecto_id")
+  defDeptoId          Int                        @map("def_depto_id")
+  paresDefectuosos    Int                        @default(1) @map("pares_defectuosos")
+  notas               String?                    @db.VarChar(255)
+  historicoOrigenId   Int?                       @unique @map("historico_origen_id")
+  creadoPor           Int?                       @map("creado_por")
+  fechaCreacion       DateTime                   @default(now()) @map("fecha_creacion")
+  actualizadoPor      Int?                       @map("actualizado_por")
+  fechaActualizacion  DateTime                   @updatedAt @map("fecha_actualizacion")
+  eliminadoPor        Int?                       @map("eliminado_por")
+  eliminadoEn         DateTime?                  @map("eliminado_en")
+  eliminadoMotivo     String?                    @map("eliminado_motivo") @db.VarChar(255)
 
-  inspeccion          InspeccionCabecera @relation(fields: [inspeccionId], references: [id], onDelete: Cascade)
-  defecto             Defecto            @relation(fields: [defectoId], references: [id], onDelete: Restrict)
-  departamentoResponsable Departamento   @relation("DetalleDeptoResponsable", fields: [defDeptoId], references: [id], onDelete: Restrict)
+  inspeccion          InspeccionCabecera         @relation(fields: [inspeccionId], references: [id], onDelete: Cascade)
+  defecto             Defecto                    @relation(fields: [defectoId], references: [id], onDelete: Restrict)
+  departamentoResponsable Departamento           @relation("DetalleDeptoResponsable", fields: [defDeptoId], references: [id], onDelete: Restrict)
+  historicoOrigen     InspeccionHistoricaOrigen? @relation(fields: [historicoOrigenId], references: [id], onDelete: Restrict)
 
   @@index([inspeccionId])
   @@index([defectoId])
@@ -667,25 +678,32 @@ model InspeccionDetalle {
 // =========================================================================
 
 model InspeccionHistoricaOrigen {
-  id             Int       @id @default(autoincrement())
-  noOriginal     String?   @map("no_original") @db.VarChar(30)
-  departamento   String?   @db.VarChar(60)
-  fechaTexto     String?   @map("fecha_texto") @db.VarChar(60)
-  fechaParseada  DateTime? @map("fecha_parseada")
-  lista          String?   @db.VarChar(30)
-  lote           String?   @db.VarChar(30)
-  linea          String?   @db.VarChar(60)
-  modelo         String?   @db.VarChar(30)
-  descripcion    String?   @db.VarChar(255)
-  defDepto       String?   @map("def_depto") @db.VarChar(60)
-  defectoClave   Int?      @map("defecto_clave")
-  defectoNombre  String?   @map("defecto_nombre") @db.VarChar(255)
-  pares          Int?      @default(0)
-  horma          String?   @db.VarChar(60)
-  usuarioTexto   String?   @map("usuario_texto") @db.VarChar(150)
-  archivoOrigen  String?   @map("archivo_origen") @db.VarChar(100)
-  fechaCarga     DateTime  @default(now()) @map("fecha_carga")
+  id                 Int                           @id @default(autoincrement())
+  archivoOrigen      String?                       @map("archivo_origen") @db.VarChar(100)
+  anioOrigen         Int                           @default(2024) @map("anio_origen")
+  noOriginal         String?                       @map("no_original") @db.VarChar(30)
+  hashFila           String                        @default("") @map("hash_fila") @db.VarChar(64)
+  departamento       String?                       @db.VarChar(60)
+  fechaTexto         String?                       @map("fecha_texto") @db.VarChar(60)
+  fechaParseada      DateTime?                     @map("fecha_parseada")
+  lista              String?                       @db.VarChar(30)
+  lote               String?                       @db.VarChar(30)
+  linea              String?                       @db.VarChar(60)
+  modelo             String?                       @db.VarChar(30)
+  descripcion        String?                       @db.VarChar(255)
+  defDepto           String?                       @map("def_depto") @db.VarChar(60)
+  defectoClave       Int?                          @map("defecto_clave")
+  defectoNombre      String?                       @map("defecto_nombre") @db.VarChar(255)
+  pares              Int?                          @default(0)
+  horma              String?                       @db.VarChar(60)
+  usuarioTexto       String?                       @map("usuario_texto") @db.VarChar(150)
+  fechaCarga         DateTime                      @default(now()) @map("fecha_carga")
+  fechaActualizacion DateTime                      @default(now()) @updatedAt @map("fecha_actualizacion")
 
+  detalle            InspeccionDetalle?
+  modificaciones     HistoricoModificacionLegacy[]
+
+  @@unique([archivoOrigen, anioOrigen, noOriginal], name: "unique_archivo_anio_no_original")
   @@index([lote])
   @@index([lista])
   @@index([modelo])
@@ -693,7 +711,71 @@ model InspeccionHistoricaOrigen {
   @@index([defDepto])
   @@index([defectoClave])
   @@index([archivoOrigen])
+  @@index([hashFila])
   @@map("inspecciones_historicas_origen")
+}
+
+// =========================================================================
+// 14. CONTROL DE SINCRONIZACIÓN INCREMENTAL Y BLOQUEOS LEGACY
+// =========================================================================
+
+model BloqueoSincronizacionLegacy {
+  id                 Int       @id @default(autoincrement())
+  archivo            String    @unique @db.VarChar(100)
+  propietarioUuid    String?   @map("propietario_uuid") @db.VarChar(64)
+  adquiridoEn        DateTime? @map("adquirido_en")
+  expiraEn           DateTime? @map("expira_en")
+  renovadoEn         DateTime? @map("renovado_en")
+  fechaActualizacion DateTime  @default(now()) @updatedAt @map("fecha_actualizacion")
+
+  @@index([expiraEn])
+  @@map("bloqueos_sincronizacion_legacy")
+}
+
+model ControlSincronizacionLegacy {
+  id                    Int                           @id @default(autoincrement())
+  ejecucionUuid         String                        @unique @map("ejecucion_uuid") @db.VarChar(64)
+  archivo               String                        @db.VarChar(100)
+  departamento          String                        @db.VarChar(60)
+  hashSha256Archivo     String                        @map("hash_sha256_archivo") @db.VarChar(64)
+  tamanoBytes           BigInt                        @map("tamano_bytes")
+  fechaModificacionTxt  DateTime                      @map("fecha_modificacion_txt")
+  iniciadoEn            DateTime                      @default(now()) @map("iniciado_en")
+  finalizadoEn          DateTime?                     @map("finalizado_en")
+  registrosDetectados   Int                           @default(0) @map("registros_detectados")
+  registrosInsertados   Int                           @default(0) @map("registros_insertados")
+  registrosActualizados Int                           @default(0) @map("registros_actualizados")
+  registrosOmitidos     Int                           @default(0) @map("registros_omitidos")
+  registrosRechazados   Int                           @default(0) @map("registros_rechazados")
+  erroresCount          Int                           @default(0) @map("errores_count")
+  detalleErrores        Json?                         @map("detalle_errores")
+  estado                String                        @db.VarChar(30)
+
+  modificaciones        HistoricoModificacionLegacy[]
+
+  @@index([archivo, estado])
+  @@index([departamento])
+  @@index([iniciadoEn])
+  @@map("control_sincronizaciones_legacy")
+}
+
+model HistoricoModificacionLegacy {
+  id                Int                         @id @default(autoincrement())
+  historicoOrigenId Int                         @map("historico_origen_id")
+  sincronizacionId  Int                         @map("sincronizacion_id")
+  hashAnterior      String                      @map("hash_anterior") @db.VarChar(64)
+  hashNuevo         String                      @map("hash_nuevo") @db.VarChar(64)
+  valoresAnteriores Json                        @map("valores_anteriores")
+  valoresNuevos     Json                        @map("valores_nuevos")
+  fechaUtc          DateTime                    @default(now()) @map("fecha_utc")
+
+  historicoOrigen   InspeccionHistoricaOrigen   @relation(fields: [historicoOrigenId], references: [id], onDelete: Restrict)
+  sincronizacion    ControlSincronizacionLegacy @relation(fields: [sincronizacionId], references: [id], onDelete: Restrict)
+
+  @@index([historicoOrigenId])
+  @@index([sincronizacionId])
+  @@index([fechaUtc])
+  @@map("historico_modificaciones_legacy")
 }
 
 

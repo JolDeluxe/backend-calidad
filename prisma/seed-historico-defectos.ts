@@ -374,20 +374,37 @@ async function main() {
       console.log(`  -> Filas vacías ignoradas: ${skippedRows}`);
     }
 
-    // VALIDACIÓN CRÍTICA: NUNCA BORRAR LA BD SI NO SE EXTRAJERON FILAS
+    // VALIDACIÓN CRÍTICA DE PROTECCIÓN (FASE 3.5):
+    // PROHIBIDO EJECUTAR BORRADOS DESTRUCTIVOS (deleteMany) SOBRE TABLAS TRANSACCIONALES.
+    const existingCabecerasCount = await prisma.inspeccionCabecera.count();
+    const existingWebCount = await prisma.inspeccionCabecera.count({
+      where: { procedencia: 'WEB' },
+    });
+
+    if (existingCabecerasCount > 0 || existingWebCount > 0) {
+      console.log(
+        `\n[PROTECCIÓN ACTIVA]: Se detectaron ${existingCabecerasCount.toLocaleString()} sesiones existentes (${existingWebCount.toLocaleString()} en modo WEB).`
+      );
+      console.log(
+        'El borrado destructivo está estrictamente deshabilitado. Delegando a sincronización incremental no destructiva...\n'
+      );
+      const { legacyIncrementalSyncService } = await import(
+        '../src/modules/inspecciones/services/legacy-incremental-sync.service'
+      );
+      const results = await legacyIncrementalSyncService.syncAll({ baseDir: workingDir });
+      for (const res of results) {
+        console.log(
+          `  -> [${res.departamento}] ${res.archivo}: estado=${res.estado} | detectados=${res.registrosDetectados} | insertados=${res.registrosInsertados} | actualizados=${res.registrosActualizados} | omitidos=${res.registrosOmitidos} | rechazados=${res.registrosRechazados}`
+        );
+      }
+      return;
+    }
+
     if (allRows.length === 0) {
       throw new Error(
         `[ABORTO DE SEGURIDAD]: Se extrajeron 0 filas válidas de los archivos en "${basePath}".\nLA BASE DE DATOS NO HA SIDO MODIFICADA.`
       );
     }
-
-    // 3. LIMPIEZA SEGURA DE TABLAS PREVIAS (SOLO TRAS COMPROBAR QUE HAY DATOS A REEMPLAZAR)
-    console.log('\n3. Procediendo al reemplazo limpio de tablas históricas...');
-    await prisma.inspeccionDetalle.deleteMany();
-    await prisma.inspeccionCabecera.deleteMany();
-    await prisma.produccionLote.deleteMany();
-    await prisma.inspeccionHistoricaOrigen.deleteMany();
-    console.log('✓ Tablas anteriores limpiadas exitosamente.');
 
     // 4. Poblar InspeccionHistoricaOrigen en lotes de 1,000 registros
     console.log('\n4. Insertando registros en tabla inspecciones_historicas_origen...');

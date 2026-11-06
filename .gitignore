@@ -17,6 +17,7 @@ logs/
 *.sqlite3
 *.db
 backup_auth_pre_migration.json
+backups/
 
 # OS and IDE files
 .DS_Store

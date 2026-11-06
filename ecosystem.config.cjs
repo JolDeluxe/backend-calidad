@@ -5,11 +5,12 @@ module.exports = {
       cwd: 'C:\\Servidor\\Aplicaciones\\Calidad-MBC\\Backend\\backend-calidad',
       // Ruta absoluta al binario real de Bun en el servidor Windows Server 2025
       script: 'C:\\Users\\joel.rodriguez\\.bun\\bin\\bun.exe',
-      // Argumentos para ejecutar el punto de entrada TypeScript con Bun
+      // Argumentos para ejecutar el único punto de entrada TypeScript (API + Scheduler Legacy integrado)
       args: 'run src/index.ts',
       // Sin intérprete externo: Bun ejecuta directamente
       interpreter: 'none',
       exec_mode: 'fork',
+      instances: 1,
       shutdown_with_message: true,
       watch: false,
       env: {
