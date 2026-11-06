@@ -112,7 +112,7 @@ function resolverDirectorioHistorico(archivosRequeridos: string[]): DirectorioVa
         Bun.spawnSync(['robocopy', dir, testTempDir, '*.txt', '/NP', '/NFL', '/NDL']);
         const copied = fs.existsSync(testTempDir) ? fs.readdirSync(testTempDir).filter(f => f.endsWith('.txt')) : [];
 
-        if (copied.length >= 8) {
+        if (copied.length >= 7) {
           console.log(`✓ Directorio UNC accesible y sincronizado: ${dir} (${copied.length} archivos .txt verificados)`);
           return {
             tipo: 'unc',
@@ -131,7 +131,7 @@ function resolverDirectorioHistorico(archivosRequeridos: string[]): DirectorioVa
           return fs.existsSync(fp) && fs.statSync(fp).size > 0;
         });
 
-        if (filesFound.length >= 8) {
+        if (filesFound.length >= 7) {
           console.log(`✓ Directorio válido y accesible: ${dir} (${filesFound.length} de ${archivosRequeridos.length} archivos verificados)`);
           return {
             tipo: 'local',
@@ -161,10 +161,9 @@ async function main() {
   console.log('Entorno actual (NODE_ENV):', process.env.NODE_ENV || 'development');
 
   const files = [
-    // Archivos de defectos activos (9 archivos)
-    'Df_Ado.txt',
+    // Archivos de defectos activos por departamento (7 archivos de producción)
+    // Se omiten Df_Ado.txt y Defectos_Adorno.txt para excluir totalmente datos de ADORNO y evitar lotes sintéticos/inventados
     'Defectos_Acabado.txt',
-    'Defectos_Adorno.txt',
     'Defectos_Avios.txt',
     'Defectos_Bordado.txt',
     'Defectos_corte.txt',
@@ -307,35 +306,17 @@ async function main() {
         let horma = '';
         let usuarioTexto = '';
 
-        if (isDfAdo) {
-          // Estructura de Df_Ado.txt (parts[0] viene vacío, sin 'No')
-          // [1]=ADORNO, [2]=Fecha, [3]=Lista, [4]=Lote, [5]=Linea, [6]=Modelo, [7]=Desc, [8]=DefDepto, [9]=Id, [10]=Defecto, [11]=Prs, [12]=Horma, [13]=Usuario
-          noOriginal = `ADO-${i}`;
-          deptoAuditoriaTexto = parts[1] || 'ADORNO';
-          fechaTexto = parts[2] || '';
-          lista = parts[3] || 'N/A';
-          lote = parts[4] || (parts[6] ? `LOTE-${parts[6]}` : 'SIN_LOTE');
-          lineaTexto = parts[5] || 'L1';
-          modelo = parts[6] || 'N/A';
-          descripcion = parts[7] || '';
-          defDeptoTexto = parts[8] || 'ADORNO';
-          defectoClave = parseInt(parts[9], 10) || 0;
-          defectoNombre = parts[10] ? parts[10].replace(/^["']+|["']+$/g, '').trim() : '';
-          pares = parseInt(parts[11], 10) || 1;
-          horma = parts[12] || '';
-          usuarioTexto = parts[13] || 'Fernando Mendoza';
+        // Omitir totalmente cualquier registro de ADORNO (sea archivo de Adorno o departamento de Adorno)
+        const deptoAuditNorm = normalizarTexto(parts[1] || '');
+        if (isDfAdo || file === 'Defectos_Adorno.txt' || deptoAuditNorm === 'ADORNO') {
+          skippedRows++;
+          continue;
+        }
 
-          // Si no tiene clave numérica, buscar por nombre de defecto en catálogo
-          if (!defectoClave && defectoNombre) {
-            const defMatch = defectoNombreMap.get(normalizarTexto(defectoNombre));
-            if (defMatch) {
-              defectoClave = defMatch.clave;
-            }
-          }
-        } else if (isAviosDefectos) {
+        if (isAviosDefectos) {
           // En Defectos_Avios.txt la columna Linea fue omitida o desplazada
           lineaTexto = 'ACCESORIO';
-          modelo = parts[5] || 'N/A';
+          modelo = parts[5] || '';
           descripcion = parts[6] || '';
           defDeptoTexto = parts[7] || 'AVIOS';
           defectoClave = parseInt(parts[8], 10) || 0;
@@ -344,8 +325,8 @@ async function main() {
           horma = parts[11] || '';
           usuarioTexto = parts[12] || '';
         } else {
-          lineaTexto = parts[5] || 'N/A';
-          modelo = parts[6] || 'N/A';
+          lineaTexto = parts[5] || '';
+          modelo = parts[6] || '';
           descripcion = parts[7] || '';
           defDeptoTexto = parts[8] || '';
           defectoClave = parseInt(parts[9], 10) || 0;
@@ -358,15 +339,10 @@ async function main() {
         // Normalizar lineaTexto para evitar textos corrompidos de Access (ej: '6L2', 'LK2', '17561')
         lineaTexto = normalizarLineaTexto(lineaTexto);
 
-        // Validar fila mínima
-        if (!lote && !defectoClave) {
+        // Validar fila mínima: si no viene lote o clave de defecto, se ignora
+        if (!lote || !defectoClave) {
           skippedRows++;
           continue;
-        }
-
-        // Si la clave no vino o es 0, usar el comodín histórico
-        if (!defectoClave) {
-          defectoClave = 9999;
         }
 
         const fechaParseada = parseFecha(fechaTexto);
@@ -379,7 +355,7 @@ async function main() {
           fechaTexto,
           fechaParseada,
           lista,
-          lote: lote || 'SIN_LOTE',
+          lote,
           lineaTexto,
           modelo,
           descripcion,
