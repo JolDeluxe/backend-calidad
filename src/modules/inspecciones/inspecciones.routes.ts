@@ -39,9 +39,10 @@ router.post(
 
 router.use(authenticate);
 
-// Métricas agregadas del Dashboard de inicio (Top 10 y contadores por departamento)
+// Métricas agregadas del Dashboard de inicio (SUPER_ADMIN, ADMIN y COORD)
 router.get(
   "/dashboard-metricas",
+  requireRole(["SUPER_ADMIN", "ADMIN", "COORD"]),
   (req, res, next) => inspeccionesController.getDashboardMetricas(req, res, next)
 );
 
