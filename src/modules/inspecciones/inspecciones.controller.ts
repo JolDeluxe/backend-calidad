@@ -13,9 +13,9 @@ const reqInfoDe = (req: Request) => ({
 });
 
 export class InspeccionesController {
-  async getDashboardMetricas(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getDashboardMetricas(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const metricas = await inspeccionesService.getDashboardMetricas();
+      const metricas = await inspeccionesService.getDashboardMetricas(req.query as any);
       sendSuccess(res, metricas, "Métricas del dashboard obtenidas exitosamente");
     } catch (error) {
       next(error);

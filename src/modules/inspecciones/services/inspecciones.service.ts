@@ -145,27 +145,74 @@ export interface EliminacionLogicaParams {
   reqInfo?: { ip?: string; userAgent?: string; method?: string; url?: string };
 }
 
+export interface FiltrosDashboardMetricas {
+  periodo?: "hoy" | "dia" | "semana" | "mes" | "anio";
+  dia?: string;
+  semana?: number;
+  anioIso?: number;
+  mes?: number;
+  anio?: number;
+}
+
 export class InspeccionesService {
   /**
    * Resumen general del dashboard de inicio para todos los roles (global).
+   * Soporta filtros temporales (hoy, dia, semana, mes, anio), por defecto semana.
    * Devuelve:
-   * 1. contadoresDeptoHoy: pares e incidencias registradas hoy agrupadas por departamento del defecto.
-   * 2. topSemanal: top 10 defectos de la semana agrupados por línea operativa.
+   * 1. contadoresDepto: departamentos con defectos o pares en el periodo (con nombre, incidencias y pares).
+   * 2. contadoresDeptoHoy: mapa de retrocompatibilidad por departamento.
+   * 3. topSemanal: top 10 defectos por línea (garantizando BOTA) incluyendo departamento asociado.
    */
-  async getDashboardMetricas() {
+  async getDashboardMetricas(params?: FiltrosDashboardMetricas) {
     const hoyStr = getHoyMexicoStr();
-    const { inicioUtc: hoyInicio, finUtc: hoyFin } = getRangoDiaUtc(hoyStr);
+    const partesHoy = getPartesFechaMexico();
+    const { finUtc: finHoyUtc } = getRangoDiaUtc(hoyStr);
     const isoHoy = getIsoYearAndWeek(hoyStr);
-    const { inicioUtc: lunesSemana } = getRangoSemanaIsoUtc(isoHoy.anioIso, isoHoy.semanaIso);
 
-    const [deptosHoyGroup, detallesSemana] = await Promise.all([
+    let inicioUtc: Date;
+    let finUtc: Date;
+    const periodo = params?.periodo || "semana";
+
+    if (periodo === "dia" && params?.dia) {
+      const rango = getRangoDiaUtc(params.dia);
+      inicioUtc = rango.inicioUtc;
+      finUtc = rango.finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : rango.finUtc;
+    } else if (periodo === "hoy") {
+      const rango = getRangoDiaUtc(hoyStr);
+      inicioUtc = rango.inicioUtc;
+      finUtc = rango.finUtc;
+    } else if (periodo === "mes") {
+      const anio = params?.anio ? Number(params.anio) : partesHoy.anio;
+      const mes = params?.mes ? Number(params.mes) : partesHoy.mes;
+      const rango = getRangoMesUtc(anio, mes);
+      inicioUtc = rango.inicioUtc;
+      finUtc = rango.finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : rango.finUtc;
+    } else if (periodo === "anio") {
+      const anio = params?.anio ? Number(params.anio) : partesHoy.anio;
+      const rango = getRangoAnioUtc(anio);
+      inicioUtc = rango.inicioUtc;
+      finUtc = rango.finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : rango.finUtc;
+    } else {
+      // Por defecto: semana
+      const anioIso = params?.anioIso
+        ? Number(params.anioIso)
+        : params?.anio
+          ? Number(params.anio)
+          : isoHoy.anioIso;
+      const semana = params?.semana ? Number(params.semana) : isoHoy.semanaIso;
+      const rango = getRangoSemanaIsoUtc(anioIso, semana);
+      inicioUtc = rango.inicioUtc;
+      finUtc = rango.finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : rango.finUtc;
+    }
+
+    const [deptosGroup, detalles] = await Promise.all([
       prisma.inspeccionDetalle.groupBy({
         by: ["defDeptoId"],
         where: {
           eliminadoEn: null,
           inspeccion: {
             eliminadoEn: null,
-            fechaInspeccion: { gte: hoyInicio, lt: hoyFin },
+            fechaInspeccion: { gte: inicioUtc, lt: finUtc },
           },
         },
         _sum: { paresDefectuosos: true },
@@ -176,11 +223,13 @@ export class InspeccionesService {
           eliminadoEn: null,
           inspeccion: {
             eliminadoEn: null,
-            fechaInspeccion: { gte: lunesSemana, lt: hoyFin },
+            fechaInspeccion: { gte: inicioUtc, lt: finUtc },
           },
         },
         select: {
           defectoId: true,
+          defDeptoId: true,
+          paresDefectuosos: true,
           defecto: {
             select: { clave: true, defecto: true },
           },
@@ -194,28 +243,71 @@ export class InspeccionesService {
               },
             },
           },
+          inspeccion: {
+            select: {
+              departamentoAuditoriaId: true,
+              departamentoAuditoria: {
+                select: { id: true, nombre: true },
+              },
+            },
+          },
         },
       }),
     ]);
 
-    // 1. Mapa de contadores por departamento (hoy)
+    // Resolver nombres de departamentos que tienen registros
+    const deptoIds = deptosGroup.map((g) => g.defDeptoId).filter(Boolean) as number[];
+    const deptosDb = deptoIds.length > 0
+      ? await prisma.departamento.findMany({
+          where: { id: { in: deptoIds } },
+          select: { id: true, nombre: true },
+        })
+      : [];
+    const deptoNombresMap = new Map(deptosDb.map((d) => [d.id, d.nombre]));
+
+    // 1. Departamentos con registros (incidencias o pares)
+    const contadoresDepto: Array<{
+      departamentoId: number;
+      departamentoNombre: string;
+      pares: number;
+      incidencias: number;
+    }> = [];
     const contadoresDeptoHoy: Record<number, { pares: number; incidencias: number }> = {};
-    for (const g of deptosHoyGroup) {
+
+    for (const g of deptosGroup) {
       if (g.defDeptoId) {
-        contadoresDeptoHoy[g.defDeptoId] = {
-          pares: g._sum.paresDefectuosos || 0,
-          incidencias: g._count.id || 0,
-        };
+        const pares = g._sum.paresDefectuosos || 0;
+        const incidencias = g._count.id || 0;
+        contadoresDeptoHoy[g.defDeptoId] = { pares, incidencias };
+
+        if (incidencias > 0 || pares > 0) {
+          contadoresDepto.push({
+            departamentoId: g.defDeptoId,
+            departamentoNombre: deptoNombresMap.get(g.defDeptoId) || `Depto ${g.defDeptoId}`,
+            pares,
+            incidencias,
+          });
+        }
       }
     }
 
-    // 2. Agrupación dinámica por línea y top 10 semanal (contando incidencias/defectos)
-    const porLinea: Record<string, Map<number, { clave: number; defecto: string; defectos: number }>> = {};
+    // Ordenar departamentos con mayor cantidad de defectos primero
+    contadoresDepto.sort((a, b) => b.incidencias - a.incidencias);
 
-    for (const d of detallesSemana) {
-      // Resolver la línea real asociada al departamento del defecto en la base de datos
+    // 2. Agrupación por línea y top 10 con departamento asociado
+    const porLinea: Record<string, Map<number, {
+      clave: number;
+      defecto: string;
+      defectos: number;
+      pares: number;
+      departamentoId?: number;
+      departamentoNombre?: string;
+    }>> = {};
+
+    for (const d of detalles) {
+      // Resolver la línea real asociada o por defecto BOTA
       const lineaAsociada = d.departamentoResponsable?.lineasAsociadas?.[0]?.linea?.nombre?.trim();
-      const lineaNombre = lineaAsociada || "General";
+      const lineaNombre = lineaAsociada || "BOTA";
 
       if (!porLinea[lineaNombre]) {
         porLinea[lineaNombre] = new Map();
@@ -226,19 +318,122 @@ export class InspeccionesService {
         clave,
         defecto: d.defecto.defecto,
         defectos: 0,
+        pares: 0,
+        departamentoId: d.departamentoResponsable?.id,
+        departamentoNombre: d.departamentoResponsable?.nombre || "",
       };
       actual.defectos += 1;
+      actual.pares += (d.paresDefectuosos || 0);
       porLinea[lineaNombre].set(clave, actual);
     }
 
-    const topSemanal: Record<string, Array<{ clave: number; defecto: string; defectos: number }>> = {};
+    // 3. Defectos encontrados en otros departamentos (fuga interdepartamental de calidad)
+    const mapaRutasCruzadas = new Map<string, {
+      origenId: number;
+      origenNombre: string;
+      detectorId: number;
+      detectorNombre: string;
+      defectos: number;
+      pares: number;
+    }>();
+
+    const mapaDefectosCruzados = new Map<string, {
+      clave: number;
+      defecto: string;
+      origenId: number;
+      origenNombre: string;
+      detectorId: number;
+      detectorNombre: string;
+      defectos: number;
+      pares: number;
+    }>();
+
+    for (const d of detalles) {
+      const deptoAuditoriaId = d.inspeccion?.departamentoAuditoriaId;
+      const deptoAuditoriaNombre = d.inspeccion?.departamentoAuditoria?.nombre?.trim() || "";
+      const deptoResponsableId = d.defDeptoId || d.departamentoResponsable?.id;
+      const deptoResponsableNombre =
+        d.departamentoResponsable?.nombre?.trim() ||
+        (deptoResponsableId ? deptoNombresMap.get(deptoResponsableId) || `Depto ${deptoResponsableId}` : "");
+
+      // Si el departamento de auditoría difiere del departamento responsable, es un defecto cruzado
+      if (
+        deptoAuditoriaId &&
+        deptoResponsableId &&
+        deptoAuditoriaId !== deptoResponsableId
+      ) {
+        // Agrupación por flujo/ruta (Origen -> Detectado en)
+        const rutaKey = `${deptoResponsableId}_${deptoAuditoriaId}`;
+        const rutaActual = mapaRutasCruzadas.get(rutaKey) || {
+          origenId: deptoResponsableId,
+          origenNombre: deptoResponsableNombre,
+          detectorId: deptoAuditoriaId,
+          detectorNombre: deptoAuditoriaNombre,
+          defectos: 0,
+          pares: 0,
+        };
+        rutaActual.defectos += 1;
+        rutaActual.pares += (d.paresDefectuosos || 0);
+        mapaRutasCruzadas.set(rutaKey, rutaActual);
+
+        // Agrupación por defecto específico cruzado
+        const defCruzadoKey = `${d.defecto.clave}_${deptoResponsableId}_${deptoAuditoriaId}`;
+        const defActual = mapaDefectosCruzados.get(defCruzadoKey) || {
+          clave: d.defecto.clave,
+          defecto: d.defecto.defecto,
+          origenId: deptoResponsableId,
+          origenNombre: deptoResponsableNombre,
+          detectorId: deptoAuditoriaId,
+          detectorNombre: deptoAuditoriaNombre,
+          defectos: 0,
+          pares: 0,
+        };
+        defActual.defectos += 1;
+        defActual.pares += (d.paresDefectuosos || 0);
+        mapaDefectosCruzados.set(defCruzadoKey, defActual);
+      }
+    }
+
+    const rutasCruzadas = Array.from(mapaRutasCruzadas.values())
+      .sort((a, b) => b.defectos - a.defectos)
+      .slice(0, 8);
+
+    const defectosCruzados = Array.from(mapaDefectosCruzados.values())
+      .sort((a, b) => b.defectos - a.defectos)
+      .slice(0, 10);
+
+    const topSemanal: Record<string, Array<{
+      clave: number;
+      defecto: string;
+      defectos: number;
+      pares: number;
+      departamentoId?: number;
+      departamentoNombre?: string;
+    }>> = {};
+
     for (const [lin, map] of Object.entries(porLinea)) {
       topSemanal[lin] = Array.from(map.values())
         .sort((a, b) => b.defectos - a.defectos)
         .slice(0, 10);
     }
 
-    return { contadoresDeptoHoy, topSemanal };
+    // Asegurar que BOTA siempre exista en la respuesta
+    if (!topSemanal["BOTA"]) {
+      topSemanal["BOTA"] = [];
+    }
+
+    return {
+      periodo,
+      rango: {
+        inicioUtc: inicioUtc.toISOString(),
+        finUtc: finUtc.toISOString(),
+      },
+      contadoresDepto,
+      contadoresDeptoHoy,
+      rutasCruzadas,
+      defectosCruzados,
+      topSemanal,
+    };
   }
   async cancelarDetalleInspeccion(detalleId: number, params: EliminacionLogicaParams) {
     const detalle = await prisma.inspeccionDetalle.findUnique({
