@@ -9,9 +9,10 @@ import { validate } from "../../middlewares/validate";
 import { terminalsService } from "../auth/services/terminals.service";
 import { terminalsRecoveryService } from "./services/terminals-recovery.service";
 import { permissionsService } from "../auth/services/permissions.service";
+import { securityService } from "../auth/services/security.service";
 import { auditService } from "../audit/services/audit.service";
 import { sendSuccess, sendCreated } from "../../utils/response";
-import { ForbiddenError } from "../../utils/errors";
+import { ForbiddenError, UnauthorizedError, NotFoundError } from "../../utils/errors";
 import { prisma } from "../../config/database";
 import {
   createTerminalSchema,
@@ -20,6 +21,7 @@ import {
   terminalIdParamSchema,
   solicitarRecuperacionSchema,
   canjearRecuperacionSchema,
+  verificarAutorizacionSuperAdminSchema,
 } from "./terminals.schema";
 
 const router = Router();
@@ -159,6 +161,125 @@ router.get(
       }
       const nombreSugerido = await terminalsService.generateSequentialName(departamentoId);
       sendSuccess(res, { nombre: nombreSugerido }, "Nombre de terminal sugerido exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Listado de usuarios con rol SUPER_ADMIN activos para autorizaciones presenciales de contingencia.
+ * Accesible para cualquier usuario autenticado en el sistema.
+ */
+router.get("/superadmins", authenticate, async (_req, res, next) => {
+  try {
+    const superadmins = await prisma.usuario.findMany({
+      where: {
+        estado: "ACTIVO",
+        rol: { codigo: "SUPER_ADMIN" },
+      },
+      select: {
+        id: true,
+        nombre: true,
+        usuario: true,
+      },
+      orderBy: { nombre: "asc" },
+    });
+    sendSuccess(res, superadmins, "SuperAdmins activos obtenidos exitosamente");
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Verificación presencial de contraseña de Super Administrador para contingencias o desvinculación forzada.
+ * Registra auditoría con evidencia del autorizador y el usuario solicitante.
+ */
+router.post(
+  "/verificar-autorizacion-superadmin",
+  authenticate,
+  validate({ body: verificarAutorizacionSuperAdminSchema }),
+  async (req, res, next) => {
+    try {
+      const { superAdminId, password, accion, motivo, terminalId } = req.body;
+
+      const superAdmin = await prisma.usuario.findFirst({
+        where: {
+          id: superAdminId,
+          estado: "ACTIVO",
+          rol: { codigo: "SUPER_ADMIN" },
+        },
+        include: { rol: true },
+      });
+
+      if (!superAdmin) {
+        throw new NotFoundError("El Super Administrador especificado no existe o no se encuentra activo");
+      }
+
+      const passwordValida = securityService.verifyPassword(password, superAdmin.passwordHash);
+
+      if (!passwordValida) {
+        await auditService.registrarEvento({
+          accion: "AUTORIZACION_SUPERADMIN_FALLIDA",
+          modulo: "TERMINALES",
+          entidad: "terminal",
+          entidadId: terminalId ? String(terminalId) : undefined,
+          descripcion: `Intento fallido de autorización presencial de SuperAdmin (${superAdmin.nombre}) para: ${accion}`,
+          resultado: "RECHAZADO",
+          motivo: "Contraseña incorrecta",
+          contexto: {
+            usuarioId: req.user?.usuarioId,
+            terminalId: terminalId ? Number(terminalId) : undefined,
+            metodoHttp: req.method,
+            rutaHttp: req.originalUrl || req.url,
+          },
+          metadatos: {
+            superAdminId: superAdmin.id,
+            superAdminUsuario: superAdmin.usuario,
+            accionSolicitada: accion,
+            motivo,
+          },
+        });
+
+        throw new UnauthorizedError("Contraseña de Super Administrador incorrecta");
+      }
+
+      await auditService.registrarEvento({
+        accion: "AUTORIZACION_SUPERADMIN_PRESENCIAL",
+        modulo: "TERMINALES",
+        entidad: "terminal",
+        entidadId: terminalId ? String(terminalId) : undefined,
+        descripcion: `Autorización presencial otorgada por ${superAdmin.nombre} (${superAdmin.usuario}) para: ${accion}`,
+        resultado: "EXITOSO",
+        motivo: motivo || "Autorización presencial concedida",
+        contexto: {
+          usuarioId: req.user?.usuarioId,
+          terminalId: terminalId ? Number(terminalId) : undefined,
+          metodoHttp: req.method,
+          rutaHttp: req.originalUrl || req.url,
+        },
+        metadatos: {
+          superAdminId: superAdmin.id,
+          superAdminUsuario: superAdmin.usuario,
+          accionAutorizada: accion,
+          motivo,
+        },
+      });
+
+      sendSuccess(
+        res,
+        {
+          autorizado: true,
+          fechaAutorizacion: new Date().toISOString(),
+          autorizador: {
+            id: superAdmin.id,
+            nombre: superAdmin.nombre,
+            usuario: superAdmin.usuario,
+          },
+          accion,
+        },
+        "Autorización de Super Administrador confirmada exitosamente",
+      );
     } catch (error) {
       next(error);
     }
