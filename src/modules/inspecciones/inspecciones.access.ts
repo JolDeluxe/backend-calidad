@@ -61,17 +61,38 @@ export const resolverAlcanceHistorial = async (
       }
     }
 
-    const deptoSet = new Set<number>(efectivos.departamentosIds || []);
-    if (req.terminal?.departamentoId) {
-      deptoSet.add(req.terminal.departamentoId);
+    // ROLES CON ALCANCE GLOBAL DE CONSULTA:
+    // SUPER_ADMIN, ADMIN, COORD y VISUALIZADOR (o quien posea defectos.consultar_departamento).
+    // Tienen acceso global irrestricto a todos los departamentos y nunca quedan acotados por asignaciones residuales ni terminales físicas.
+    const esRolGlobal =
+      general ||
+      efectivos.rolCodigo === "SUPER_ADMIN" ||
+      efectivos.rolCodigo === "ADMIN" ||
+      efectivos.rolCodigo === "COORD" ||
+      efectivos.rolCodigo === "VISUALIZADOR";
+
+    let departamentosAlcanceIds: number[] = [];
+
+    if (esRolGlobal) {
+      // Alcance global irrestricto
+      departamentosAlcanceIds = [];
+    } else {
+      // ROL INSPECTOR:
+      // El contexto departamental de trabajo se determina EXCLUSIVAMENTE mediante la terminal física autenticada.
+      // Un inspector no está asignado permanentemente a un departamento; puede trabajar desde cualquier terminal.
+      if (req.terminal?.departamentoId) {
+        departamentosAlcanceIds = [req.terminal.departamentoId];
+      } else {
+        departamentosAlcanceIds = [];
+      }
     }
 
     res.locals.alcanceHistorial = {
-      general,
+      general: esRolGlobal,
       rolCodigo: efectivos.rolCodigo,
       puedeVerEliminados: eliminar,
       puedeVerTrazabilidad: auditar,
-      departamentosAlcanceIds: Array.from(deptoSet),
+      departamentosAlcanceIds,
     } satisfies AlcanceHistorial;
     next();
   } catch (error) {

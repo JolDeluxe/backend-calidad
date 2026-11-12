@@ -93,33 +93,68 @@ export class InspeccionesController {
       throw new ForbiddenError("Acceso denegado: falta el permiso 'defectos.eliminar' para ver registros eliminados");
     }
 
-    const departamentosPermitidosIds =
-      alcance.general && alcance.rolCodigo !== "SUPER_ADMIN" && alcance.departamentosAlcanceIds.length > 0
-        ? alcance.departamentosAlcanceIds
-        : undefined;
+    // 1. Roles con alcance global (SUPER_ADMIN, ADMIN, COORD, VISUALIZADOR):
+    // Acceso total a todos los departamentos. Pueden consultar libremente cualquier departamento o todos.
+    if (alcance.general) {
+      return {
+        periodo: q.periodo || "ultimos",
+        busqueda: q.busqueda || undefined,
+        lote: q.lote || undefined,
+        defectoClave: q.defectoClave,
+        departamentoId: q.departamentoId,
+        departamentoAuditoriaId: q.departamentoAuditoriaId,
+        departamentoResponsableId: q.departamentoResponsableId,
+        clasificacion: q.clasificacion,
+        lineaId: q.lineaId,
+        lineaTexto: q.lineaTexto || undefined,
+        inspectorId: q.inspectorId,
+        alcanceRestringido: undefined,
+        departamentosPermitidosIds: undefined,
+        terminalId: q.terminalId,
+        dia: q.dia || undefined,
+        semana: q.semana,
+        anioIso: q.anioIso,
+        mes: q.mes,
+        anio: q.anio,
+        fechaDesde: q.fechaDesde || undefined,
+        fechaHasta: q.fechaHasta || undefined,
+        soloEliminados: q.soloEliminados === true,
+      };
+    }
 
+    // 2. Rol INSPECTOR:
+    // Su departamento está determinado exclusivamente por la terminal física autenticada.
+    const deptoTerminalId = alcance.departamentosAlcanceIds[0];
+    if (!deptoTerminalId) {
+      throw new ForbiddenError(
+        "Acceso denegado: requiere terminal física vinculada y activa para consultar inspecciones de su departamento"
+      );
+    }
+
+    // Seguridad: Un inspector NO puede consultar registros de otro departamento manipulando la URL
+    if (q.departamentoId && Number(q.departamentoId) !== deptoTerminalId) {
+      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+    if (q.departamentoAuditoriaId && Number(q.departamentoAuditoriaId) !== deptoTerminalId) {
+      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+
+    // Para el inspector, se fija automáticamente el departamento al de su terminal autenticada.
+    // Los registros NO son privados por inspector: NO se filtra por usuario creador.
     return {
       periodo: q.periodo || "ultimos",
       busqueda: q.busqueda || undefined,
       lote: q.lote || undefined,
       defectoClave: q.defectoClave,
-      departamentoId: q.departamentoId,
-      departamentoAuditoriaId: q.departamentoAuditoriaId,
+      departamentoId: undefined,
+      departamentoAuditoriaId: deptoTerminalId,
       departamentoResponsableId: q.departamentoResponsableId,
       clasificacion: q.clasificacion,
       lineaId: q.lineaId,
       lineaTexto: q.lineaTexto || undefined,
-      // Con alcance general, se permite filtrar opcionalmente por cualquier inspector;
-      // sin alcance general, el usuario ve sus registros propios MÁS los de su estación/departamento autorizado.
-      inspectorId: alcance.general ? q.inspectorId : undefined,
-      alcanceRestringido: alcance.general
-        ? undefined
-        : {
-            usuarioId: req.user!.usuarioId,
-            departamentosIds: alcance.departamentosAlcanceIds,
-            terminalId: req.terminal?.id,
-          },
-      departamentosPermitidosIds,
+      inspectorId: undefined, // Nunca se acota por creador: ve todos los registros de la terminal/departamento
+      alcanceRestringido: undefined,
+      departamentosPermitidosIds: [deptoTerminalId],
       terminalId: q.terminalId,
       dia: q.dia || undefined,
       semana: q.semana,
@@ -186,7 +221,6 @@ export class InspeccionesController {
       }
 
       const detalle = await inspeccionesService.getDetalleInspeccion(Number(req.params.id), {
-        soloPropiaDeUsuarioId: alcance.general ? undefined : req.user!.usuarioId,
         departamentosPermitidosIds: alcance.general ? undefined : alcance.departamentosAlcanceIds,
         terminalPermitidaId: alcance.general ? undefined : req.terminal?.id,
         incluirEliminados,
@@ -201,15 +235,11 @@ export class InspeccionesController {
   async getInspectores(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q = req.query as unknown as Record<string, any>;
-      const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
-      const departamentosPermitidosIds =
-        alcance.rolCodigo !== "SUPER_ADMIN" && alcance.departamentosAlcanceIds.length > 0
-          ? alcance.departamentosAlcanceIds
-          : undefined;
-
+      // Quien consulta inspectores ya cuenta con alcance general (requireAlcanceGeneral: SUPER_ADMIN, ADMIN, COORD, VISUALIZADOR).
+      // Puede consultar libremente inspectores de cualquier departamento o todos.
       const inspectores = await inspeccionesService.getInspectores({
         departamentoId: q.departamentoId,
-        departamentosPermitidosIds,
+        departamentosPermitidosIds: undefined,
       });
       sendSuccess(res, inspectores, "Inspectores activos recuperados exitosamente");
     } catch (error) {

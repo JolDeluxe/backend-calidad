@@ -91,8 +91,12 @@ export class PermissionsService {
    */
   async hasDepartmentScope(usuarioId: number, departamentoId: number): Promise<boolean> {
     const efectivos = await this.getPermisosEfectivos(usuarioId);
-    // SUPER_ADMIN tiene alcance global
-    if (efectivos.rolCodigo === "SUPER_ADMIN") {
+    // Roles globales y con alcance general tienen alcance total sobre todos los departamentos
+    const rolesGlobales = ["SUPER_ADMIN", "ADMIN", "COORD", "VISUALIZADOR"];
+    if (
+      rolesGlobales.includes(efectivos.rolCodigo) ||
+      efectivos.permisos.includes("defectos.consultar_departamento")
+    ) {
       return true;
     }
     return efectivos.departamentosIds.includes(departamentoId);

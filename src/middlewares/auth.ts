@@ -36,7 +36,7 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
       throw new UnauthorizedError("Token de acceso inválido o expirado");
     }
 
-    await sessionService.validateActiveUser(decoded.usuarioId);
+    const usuario = await sessionService.validateActiveUser(decoded.usuarioId);
 
     // Validación estricta de sesión: todo token debe tener sesionId asociado y dicha sesión debe estar activa en MySQL
     if (!decoded.sesionId) {
@@ -45,7 +45,12 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
 
     await sessionService.validateActiveSession(decoded.sesionId);
 
-    req.user = decoded;
+    // Sincronizar el rol vivo del usuario desde la base de datos para no depender de claims JWT obsoletos
+    req.user = {
+      ...decoded,
+      rolId: usuario.rol.id,
+      rolCodigo: usuario.rol.codigo,
+    };
     next();
   } catch (error) {
     next(error);

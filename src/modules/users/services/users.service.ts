@@ -250,6 +250,19 @@ export class UsersService {
         });
       }
 
+      // Si el rol cambia a un rol administrativo o de alcance global, limpiar asignaciones residuales de departamento
+      if (input.rolId) {
+        const nuevoRol = await tx.rol.findUnique({ where: { id: input.rolId } });
+        if (
+          nuevoRol &&
+          ["SUPER_ADMIN", "ADMIN", "COORD", "VISUALIZADOR"].includes(nuevoRol.codigo)
+        ) {
+          await tx.usuarioDepartamento.deleteMany({
+            where: { usuarioId: id },
+          });
+        }
+      }
+
       // Registrar auditoría centralizada con hash en la misma transacción
       const accion = input.estado === "INACTIVO" ? "USUARIO_DESACTIVADO" : "USUARIO_ACTUALIZADO";
       await auditService.registrarEvento(

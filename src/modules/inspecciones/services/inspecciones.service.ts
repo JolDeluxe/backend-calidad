@@ -581,8 +581,8 @@ export class InspeccionesService {
 
   /**
    * Detalle completo de una inspección: cabecera, lote, terminal, usuario y defectos.
-   * - `soloPropiaDeUsuarioId`: si se indica, devuelve la inspección si pertenece a ese inspector,
-   *   o si pertenece a la terminal activa (`terminalPermitidaId`) o departamentos de alcance (`departamentosPermitidosIds`).
+   * - `departamentosPermitidosIds`: si se indica (ej. INSPECTOR acotado a la terminal activa),
+   *   valida que la inspección corresponda a ese departamento auditor. Si no coincide, rechaza con 403.
    * - `incluirEliminados`: incluye defectos con borrado lógico (requiere permiso en la capa de ruta).
    * - `incluirTrazabilidad`: incluye eventos de auditoría de la inspección y sus defectos.
    */
@@ -596,22 +596,10 @@ export class InspeccionesService {
       incluirTrazabilidad: boolean;
     }
   ) {
-    const scopeOr: any[] = [];
-    if (opts.soloPropiaDeUsuarioId) {
-      scopeOr.push({ inspectorId: opts.soloPropiaDeUsuarioId });
-      if (opts.departamentosPermitidosIds && opts.departamentosPermitidosIds.length > 0) {
-        scopeOr.push({ departamentoAuditoriaId: { in: opts.departamentosPermitidosIds } });
-      }
-      if (opts.terminalPermitidaId) {
-        scopeOr.push({ terminalId: opts.terminalPermitidaId });
-      }
-    }
-
     const inspeccion = await prisma.inspeccionCabecera.findFirst({
       where: {
         id,
         eliminadoEn: null,
-        ...(scopeOr.length > 0 ? { OR: scopeOr } : {}),
       },
       include: {
         lote: true,
@@ -632,6 +620,14 @@ export class InspeccionesService {
 
     if (!inspeccion) {
       throw new NotFoundError("La inspección no existe o no está disponible para su consulta");
+    }
+
+    if (
+      opts.departamentosPermitidosIds &&
+      opts.departamentosPermitidosIds.length > 0 &&
+      !opts.departamentosPermitidosIds.includes(inspeccion.departamentoAuditoriaId)
+    ) {
+      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
     }
 
     let trazabilidad: unknown[] | undefined;
@@ -1470,14 +1466,6 @@ export class InspeccionesService {
       throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
     }
     if (params.departamentoAuditoriaId && !permitidos.includes(params.departamentoAuditoriaId)) {
-      throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
-    }
-    if (
-      params.departamentosPermitidosIds &&
-      params.departamentosPermitidosIds.length > 0 &&
-      params.departamentoResponsableId &&
-      !permitidos.includes(params.departamentoResponsableId)
-    ) {
       throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
     }
   }

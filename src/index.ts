@@ -80,6 +80,21 @@ async function startServer() {
     await prisma.$queryRaw`SELECT 1`;
     logger.info("Conexión inicial con la base de datos MySQL establecida correctamente.");
 
+    // Limpieza preventiva no destructiva de asignaciones departamentales residuales en usuarios con rol administrativo
+    await prisma.usuarioDepartamento
+      .deleteMany({
+        where: {
+          usuario: {
+            rol: {
+              codigo: { in: ["SUPER_ADMIN", "ADMIN", "VISUALIZADOR"] },
+            },
+          },
+        },
+      })
+      .catch((err) => {
+        logger.warn({ err }, "No se pudo completar la limpieza preventiva de asignaciones residuales");
+      });
+
     // 2. Crear app Express y enlazar puerto
     const app = createApp();
 

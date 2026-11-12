@@ -180,6 +180,9 @@ describe("Fase 2 Backend: Segmentación temporal, periodos disponibles, inspecto
     adminGeneralId = uAdminGen.id;
     tokens.admin = uAdminGen.token;
 
+    const uAdminResidual = await crearUsuarioPrueba(`f2_admin_res_${suf}`, "ADMIN", "ACTIVO", [deptoMontadoId]);
+    tokens.adminResidual = uAdminResidual.token;
+
     // 1. Inspección en cruce de año ISO: Lunes 30 de diciembre de 2024 a las 10:00 America/Mexico_City (16:00 UTC)
     // Pertenece al año calendario 2024, pero a la Semana ISO 1 del año ISO 2025 (2025-W01).
     const c1 = await prisma.inspeccionCabecera.create({
@@ -493,7 +496,7 @@ describe("Fase 2 Backend: Segmentación temporal, periodos disponibles, inspecto
   // 5. PERMISOS DEPARTAMENTALES
   // =========================================================================
   describe("5. Permisos departamentales en inspectores, periodos e historial", () => {
-    it("5.1. GET /inspecciones/inspectores filtra por departamentoId y respeta el alcance departamental del coordinador", async () => {
+    it("5.1. GET /inspecciones/inspectores filtra por departamentoId y permite al coordinador consultar inspectores de cualquier departamento", async () => {
       // Admin general filtrando por CORTE ve al inspector de CORTE y no al de MONTADO
       const rCorte = await api("GET", `/inspecciones/inspectores?departamentoId=${deptoCorteId}`, "admin");
       expect(rCorte.status).toBe(200);
@@ -501,44 +504,75 @@ describe("Fase 2 Backend: Segmentación temporal, periodos disponibles, inspecto
       expect(idsCorte.has(inspectorActivoCorteId)).toBe(true);
       expect(idsCorte.has(inspectorActivoMontadoId)).toBe(false);
 
-      // Coordinador restringido a MONTADO solo ve inspectores de MONTADO por defecto
-      const rCoord = await api("GET", "/inspecciones/inspectores", "coordMontado");
-      expect(rCoord.status).toBe(200);
-      const idsCoord = new Set(rCoord.json.data.map((u: any) => u.id));
-      expect(idsCoord.has(inspectorActivoMontadoId)).toBe(true);
-      expect(idsCoord.has(inspectorActivoCorteId)).toBe(false);
-
-      // Si el coordinador restringido a MONTADO intenta pedir inspectores de CORTE -> 403 Forbidden
-      const rCoordProhibido = await api(
+      // Coordinador tiene alcance global de consulta: puede pedir inspectores de CORTE libremente (200 OK)
+      const rCoordCorte = await api(
         "GET",
         `/inspecciones/inspectores?departamentoId=${deptoCorteId}`,
         "coordMontado"
       );
-      expect(rCoordProhibido.status).toBe(403);
+      expect(rCoordCorte.status).toBe(200);
+      const idsCoordCorte = new Set(rCoordCorte.json.data.map((u: any) => u.id));
+      expect(idsCoordCorte.has(inspectorActivoCorteId)).toBe(true);
+      expect(idsCoordCorte.has(inspectorActivoMontadoId)).toBe(false);
     });
 
-    it("5.2. Coordinador con alcance departamental solo consulta historial y periodos de sus departamentos autorizados", async () => {
+    it("5.2. Coordinador con rol COORD tiene acceso global de consulta a todos los departamentos", async () => {
+      // 1. Sin filtro de departamento: consulta historial general
       const rHist = await api("GET", "/inspecciones?periodo=dia&dia=2025-06-15&limit=200", "coordMontado");
       expect(rHist.status).toBe(200);
       const idsHist = new Set(rHist.json.data.items.map((i: any) => i.inspeccionId));
-      // Ve las de MONTADO pero no la de CORTE
       expect(idsHist.has(inspNocheLocalId)).toBe(true);
-      expect(idsHist.has(inspInactivoHistId)).toBe(false);
+      expect(idsHist.has(inspInactivoHistId)).toBe(true);
 
-      // Si intenta forzar departamentoId de CORTE en historial o en periodos-disponibles -> 403 Forbidden
+      // 2. Coordinador puede consultar libremente el historial de CORTE (200 OK, no 403 Forbidden)
       const rForzadoHist = await api(
         "GET",
-        `/inspecciones?periodo=todos&departamentoId=${deptoCorteId}`,
+        `/inspecciones?periodo=dia&dia=2025-06-15&departamentoId=${deptoCorteId}`,
         "coordMontado"
       );
-      expect(rForzadoHist.status).toBe(403);
+      expect(rForzadoHist.status).toBe(200);
 
+      // 3. Coordinador puede consultar libremente periodos-disponibles de CORTE (200 OK, no 403 Forbidden)
       const rForzadoPeriodos = await api(
         "GET",
         `/inspecciones/periodos-disponibles?departamentoId=${deptoCorteId}`,
         "coordMontado"
       );
-      expect(rForzadoPeriodos.status).toBe(403);
+      expect(rForzadoPeriodos.status).toBe(200);
+    });
+
+    it("5.3. Usuario con rol ADMIN (incluso con departamentos residuales) tiene acceso global a todos los departamentos y nunca recibe 403", async () => {
+      // 1. Sin filtro de departamento: Ve registros de MONTADO y de CORTE
+      const rHist = await api("GET", "/inspecciones?periodo=dia&dia=2025-06-15&limit=200", "adminResidual");
+      expect(rHist.status).toBe(200);
+      const idsHist = new Set(rHist.json.data.items.map((i: any) => i.inspeccionId));
+      expect(idsHist.has(inspNocheLocalId)).toBe(true);
+      expect(idsHist.has(inspInactivoHistId)).toBe(true);
+
+      // 2. Filtrando explícitamente por CORTE: 200 OK (no 403 Forbidden)
+      const rCorte = await api(
+        "GET",
+        `/inspecciones?periodo=dia&dia=2025-06-15&departamentoId=${deptoCorteId}`,
+        "adminResidual"
+      );
+      expect(rCorte.status).toBe(200);
+      expect(rCorte.json.data.items.length).toBeGreaterThan(0);
+
+      // 3. Periodos disponibles para CORTE: 200 OK (no 403 Forbidden)
+      const rPeriodosCorte = await api(
+        "GET",
+        `/inspecciones/periodos-disponibles?departamentoId=${deptoCorteId}`,
+        "adminResidual"
+      );
+      expect(rPeriodosCorte.status).toBe(200);
+
+      // 4. Inspectores de CORTE: 200 OK (no 403 Forbidden)
+      const rInspectoresCorte = await api(
+        "GET",
+        `/inspecciones/inspectores?departamentoId=${deptoCorteId}`,
+        "adminResidual"
+      );
+      expect(rInspectoresCorte.status).toBe(200);
     });
   });
 
