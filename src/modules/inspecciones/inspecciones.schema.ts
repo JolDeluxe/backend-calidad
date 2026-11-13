@@ -9,9 +9,9 @@ import {
 
 export const itemDefectoCaptureSchema = z.object({
   defectoId: z.number().int().positive("El ID del defecto debe ser un entero positivo"),
-  defDeptoId: z.number().int().positive("El ID del departamento responsable debe ser un entero positivo").optional(),
+  defDeptoId: z.number().int().positive("El ID del departamento responsable debe ser un entero positivo").optional().nullable(),
   paresDefectuosos: z.number().int().min(1, "Debe registrarse al menos 1 par defectuoso"),
-  notas: z.string().trim().max(255).optional(),
+  notas: z.string().trim().max(255).optional().nullable(),
 });
 
 // El departamento de auditoría NO forma parte del contrato: lo determina exclusivamente la terminal validada.
