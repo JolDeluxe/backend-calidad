@@ -132,6 +132,11 @@ export interface GetInspeccionesParams extends FiltrosBaseInspeccionesParams {
   limit: number;
 }
 
+export interface ExportarFilasInspeccionParams extends FiltrosBaseInspeccionesParams {
+  page?: number;
+  limit?: number;
+}
+
 export interface GetPeriodosDisponiblesParams extends FiltrosBaseInspeccionesParams {}
 
 export interface GetInspectoresParams {
@@ -1850,11 +1855,11 @@ export class InspeccionesService {
   }
 
   /**
-   * Obtiene la totalidad de los registros de defectos correspondientes a los filtros seleccionados
-   * mediante lectura paginada por lotes internos (sin truncamiento silencioso), garantizando
-   * correspondencia 1:1 entre la consulta y la exportación.
+   * Obtiene la totalidad o lotes paginados seguros de los registros de defectos correspondientes a los filtros
+   * mediante lectura por páginas o lotes internos (sin truncamiento silencioso), garantizando
+   * correspondencia 1:1 entre la consulta y la exportación y protegiendo la memoria del servidor.
    */
-  async exportarFilasInspeccion(params: FiltrosBaseInspeccionesParams) {
+  async exportarFilasInspeccion(params: ExportarFilasInspeccionParams) {
     const { where, periodo } = this.construirWhereFilasInspeccion(params);
     const esUltimos = !params.soloEliminados && periodo === "ultimos";
 
@@ -1879,10 +1884,51 @@ export class InspeccionesService {
         totalInspecciones,
         totalParesDefectuosos,
         periodo,
+        page: 1,
+        limit: 30,
+        totalPages: 1,
       };
     }
 
-    const BATCH_SIZE = 2000;
+    // Modo paginado seguro para exportaciones masivas con barra de progreso
+    if (params.page !== undefined) {
+      const page = Math.max(1, params.page);
+      const limit = Math.min(10000, Math.max(1, params.limit || 2500));
+      const skip = (page - 1) * limit;
+
+      const [detalles, totalDefectos] = await Promise.all([
+        prisma.inspeccionDetalle.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [
+            { inspeccion: { fechaInspeccion: "desc" } },
+            { id: "desc" },
+          ],
+          include: this.includeDetalleFila,
+        }),
+        prisma.inspeccionDetalle.count({ where }),
+      ]);
+
+      const items = await this.mapearDetallesAFilas(detalles);
+      const totalPages = Math.ceil(totalDefectos / limit) || 1;
+      const totalInspecciones = new Set(items.map((i) => i.inspeccionId)).size;
+      const totalParesDefectuosos = items.reduce((acc, i) => acc + i.paresDefectuosos, 0);
+
+      return {
+        items,
+        total: totalDefectos,
+        totalDefectos,
+        totalInspecciones,
+        totalParesDefectuosos,
+        page,
+        limit,
+        totalPages,
+        periodo,
+      };
+    }
+
+    const BATCH_SIZE = 2500;
     const todosDetalles: any[] = [];
     let offset = 0;
 
@@ -1915,6 +1961,9 @@ export class InspeccionesService {
       totalInspecciones,
       totalParesDefectuosos,
       periodo,
+      page: 1,
+      limit: items.length,
+      totalPages: 1,
     };
   }
 

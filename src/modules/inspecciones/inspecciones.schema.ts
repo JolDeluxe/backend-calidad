@@ -225,6 +225,8 @@ export const getInspeccionesQuerySchema = z
 export const exportarInspeccionesQuerySchema = z
   .object({
     ...filtrosComunesInspeccionesShape,
+    page: z.coerce.number().int().positive().max(100000).optional(),
+    limit: z.coerce.number().int().positive().max(10000).optional(),
   })
   .superRefine(validarReglasTemporalesInspeccion);
 

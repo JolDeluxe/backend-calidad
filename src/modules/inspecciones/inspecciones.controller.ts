@@ -192,7 +192,11 @@ export class InspeccionesController {
       const alcance = res.locals.alcanceHistorial as AlcanceHistorial;
       const baseParams = this.construirParametrosBaseFiltro(q, req, alcance);
 
-      const resultado = await inspeccionesService.exportarFilasInspeccion(baseParams);
+      const resultado = await inspeccionesService.exportarFilasInspeccion({
+        ...baseParams,
+        page: q.page !== undefined ? Number(q.page) : undefined,
+        limit: q.limit !== undefined ? Number(q.limit) : undefined,
+      });
       sendSuccess(res, resultado, "Datos de exportación recuperados exitosamente");
     } catch (error) {
       next(error);
