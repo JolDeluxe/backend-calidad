@@ -151,18 +151,20 @@ export interface EliminacionLogicaParams {
 }
 
 export interface FiltrosDashboardMetricas {
-  periodo?: "hoy" | "dia" | "semana" | "mes" | "anio";
+  periodo?: "hoy" | "dia" | "semana" | "mes" | "anio" | "rango";
   dia?: string;
   semana?: number;
   anioIso?: number;
   mes?: number;
   anio?: number;
+  fechaDesde?: string;
+  fechaHasta?: string;
 }
 
 export class InspeccionesService {
   /**
    * Resumen general del dashboard de inicio para todos los roles (global).
-   * Soporta filtros temporales (hoy, dia, semana, mes, anio), por defecto semana.
+   * Soporta filtros temporales (hoy, dia, semana, mes, anio, rango), por defecto semana.
    * Devuelve:
    * 1. contadoresDepto: departamentos con defectos o pares en el periodo (con nombre, incidencias y pares).
    * 2. contadoresDeptoHoy: mapa de retrocompatibilidad por departamento.
@@ -178,7 +180,19 @@ export class InspeccionesService {
     let finUtc: Date;
     const periodo = params?.periodo || "semana";
 
-    if (periodo === "dia" && params?.dia) {
+    if (periodo === "rango" && (params?.fechaDesde || params?.fechaHasta)) {
+      if (params.fechaDesde) {
+        inicioUtc = getRangoDiaUtc(params.fechaDesde).inicioUtc;
+      } else {
+        inicioUtc = new Date(0);
+      }
+      if (params.fechaHasta) {
+        const rHasta = getRangoDiaUtc(params.fechaHasta);
+        finUtc = rHasta.finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : rHasta.finUtc;
+      } else {
+        finUtc = finHoyUtc;
+      }
+    } else if (periodo === "dia" && params?.dia) {
       const rango = getRangoDiaUtc(params.dia);
       inicioUtc = rango.inicioUtc;
       finUtc = rango.finUtc.getTime() > finHoyUtc.getTime() ? finHoyUtc : rango.finUtc;
