@@ -72,6 +72,7 @@ model Departamento {
   categoria               CategoriaDepartamento? @relation(fields: [categoriaDepartamentoId], references: [id], onDelete: SetNull)
   usuarios                UsuarioDepartamento[]
   terminales              Terminal[]
+  terminalesAsociadas     TerminalDepartamento[]
   registrosAuditoria      RegistroAuditoria[]
   lineasAsociadas         DepartamentoLinea[]
   defectosAsociados       DefectoDepartamento[]
@@ -233,6 +234,7 @@ model Terminal {
   fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
 
   departamento       Departamento        @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+  departamentos      TerminalDepartamento[]
   registrosAuditoria RegistroAuditoria[]
   inspecciones       InspeccionCabecera[]
   codigosRecuperacion TerminalRecuperacionCodigo[]
@@ -240,6 +242,27 @@ model Terminal {
   @@index([departamentoId])
   @@index([estado])
   @@map("terminales")
+}
+
+model TerminalDepartamento {
+  id                 Int            @id @default(autoincrement())
+  terminalId         Int            @map("terminal_id")
+  departamentoId     Int            @map("departamento_id")
+  esPrincipal        Boolean        @default(false) @map("es_principal")
+  activo             Boolean        @default(true)
+  creadoPor          Int?           @map("creado_por")
+  fechaCreacion      DateTime       @default(now()) @map("fecha_creacion")
+  actualizadoPor     Int?           @map("actualizado_por")
+  fechaActualizacion DateTime       @updatedAt @map("fecha_actualizacion")
+
+  terminal           Terminal       @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+  departamento       Departamento   @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+
+  @@unique([terminalId, departamentoId], name: "unique_terminal_departamento")
+  @@index([terminalId])
+  @@index([departamentoId])
+  @@index([activo])
+  @@map("terminales_departamentos")
 }
 
 // =========================================================================
@@ -603,9 +626,12 @@ model InspeccionCabecera {
   folio                   String              @unique @db.VarChar(30)
   loteId                  Int                 @map("lote_id")
   inspectorId             Int                 @map("inspector_id")
-  departamentoAuditoriaId Int                 @map("departamento_auditoria_id")
-  terminalId              Int?                @map("terminal_id")
-  lineaId                 Int?                @map("linea_id")
+  departamentoAuditoriaId       Int                 @map("departamento_auditoria_id")
+  terminalId                    Int?                @map("terminal_id")
+  terminalTexto                 String?             @map("terminal_texto") @db.VarChar(60)
+  lugarDeteccionTexto           String?             @map("lugar_deteccion_texto") @db.VarChar(100)
+  departamentosTerminalSnapshot Json?               @map("departamentos_terminal_snapshot")
+  lineaId                       Int?                @map("linea_id")
   lineaTexto              String?             @map("linea_texto") @db.VarChar(30)
   horma                   String?             @db.VarChar(60)
   claveIdempotencia       String?             @map("clave_idempotencia") @db.VarChar(64)
@@ -651,6 +677,9 @@ model InspeccionDetalle {
   defectoId           Int                        @map("defecto_id")
   defDeptoId          Int                        @map("def_depto_id")
   paresDefectuosos    Int                        @default(1) @map("pares_defectuosos")
+  esDeptoExterno      Boolean?                   @map("es_depto_externo")
+  lugarDeteccionTexto String?                    @map("lugar_deteccion_texto") @db.VarChar(100)
+  nomenclaturaTexto   String?                    @map("nomenclatura_texto") @db.VarChar(255)
   notas               String?                    @db.VarChar(255)
   historicoOrigenId   Int?                       @unique @map("historico_origen_id")
   creadoPor           Int?                       @map("creado_por")

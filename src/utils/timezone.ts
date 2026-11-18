@@ -289,6 +289,33 @@ export function getRangoAnioIsoCompletoUtc(anioIso: number): { inicioUtc: Date; 
 }
 
 /**
+ * Calcula el intervalo semiabierto `[inicioUtc, finUtc)` en UTC correspondiente
+ * a los últimos `mesesAtras` meses (por defecto 6) calculados hacia atrás desde hoy en `America/Mexico_City`.
+ * - `inicioUtc`: Día de corte (6 meses atrás) a las 00:00:00 local (`06:00:00.000Z`).
+ * - `finUtc`:    Final del día actual a las 23:59:59.999 local (mañana a las `06:00:00.000Z`).
+ */
+export function getRangoUltimosMesesUtc(
+  mesesAtras: number = 6,
+  now: Date = new Date()
+): { inicioUtc: Date; finUtc: Date } {
+  const partesHoy = getPartesFechaMexico(now);
+  const { finUtc } = getRangoDiaUtc(partesHoy.fechaStr);
+
+  const targetMonth = partesHoy.mes - 1 - mesesAtras;
+  const dtTemp = new Date(Date.UTC(partesHoy.anio, targetMonth, 1, MEXICO_UTC_OFFSET_HOURS, 0, 0, 0));
+  const yearRes = dtTemp.getUTCFullYear();
+  const monthRes = dtTemp.getUTCMonth();
+  const lastDayOfMonth = new Date(Date.UTC(yearRes, monthRes + 1, 0)).getUTCDate();
+  const safeDay = Math.min(partesHoy.dia, lastDayOfMonth);
+
+  const inicioUtc = new Date(
+    Date.UTC(yearRes, monthRes, safeDay, MEXICO_UTC_OFFSET_HOURS, 0, 0, 0)
+  );
+
+  return { inicioUtc, finUtc };
+}
+
+/**
  * Formatea una fecha `AAAA-MM-DD` a formato legible `DD/MM/AAAA` y obtiene el nombre del día en español.
  */
 export function formatearDiaDisponible(fechaStr: string): {

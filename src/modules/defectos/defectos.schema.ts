@@ -12,6 +12,14 @@ export const getDefectosQuerySchema = z.object({
   clasificacion: z.enum(["CRITICO", "MAYOR", "MENOR"]).optional(),
   departamentoId: z.string().regex(/^\d+$/).transform(Number).optional(),
   etapaId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  etapasIds: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const arr = Array.isArray(val) ? val : val.split(",");
+      return arr.map((v) => Number(v.trim())).filter((n) => !isNaN(n) && n > 0);
+    }),
   categoriaDepartamentoId: z.string().regex(/^\d+$/).transform(Number).optional(),
   lineaId: z.string().regex(/^\d+$/).transform(Number).optional(),
   lineasIds: z
@@ -40,7 +48,15 @@ export const getDefectosQuerySchema = z.object({
 
 export const validarDefectoCapturaQuerySchema = z.object({
   clave: z.string().regex(/^\d+$/, "La clave debe ser un número entero positivo").transform(Number),
-  etapaId: z.string().regex(/^\d+$/, "El ID de etapa debe ser un número entero positivo").transform(Number),
+  etapaId: z.string().regex(/^\d+$/, "El ID de etapa debe ser un número entero positivo").transform(Number).optional(),
+  etapasIds: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const arr = Array.isArray(val) ? val : val.split(",");
+      return arr.map((v) => Number(v.trim())).filter((n) => !isNaN(n) && n > 0);
+    }),
 });
 
 export const createDefectoSchema = z.object({

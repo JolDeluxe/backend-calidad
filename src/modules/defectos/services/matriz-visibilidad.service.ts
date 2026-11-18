@@ -428,6 +428,30 @@ export class MatrizVisibilidadDefectosService {
   }
 
   /**
+   * Construye la condición WHERE de Prisma para filtrar defectos detectables en la unión
+   * de varios departamentos habilitados en una terminal multidepartamental.
+   */
+  async construirWhereFiltroDefectosPorDepartamentosDeteccion(
+    departamentosDeteccionIds: number[]
+  ): Promise<Prisma.DefectoWhereInput> {
+    const idsUnicos = Array.from(
+      new Set(departamentosDeteccionIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))
+    );
+    if (idsUnicos.length === 0) {
+      return { id: -1 };
+    }
+    if (idsUnicos.length === 1) {
+      return this.construirWhereFiltroDefectosPorDepartamentoDeteccion(idsUnicos[0]);
+    }
+    const condiciones = await Promise.all(
+      idsUnicos.map((id) => this.construirWhereFiltroDefectosPorDepartamentoDeteccion(id))
+    );
+    return {
+      OR: condiciones,
+    };
+  }
+
+  /**
    * Obtiene la plantilla de etapas permitidas por la matriz para un departamento propietario.
    * Utilizada al dar de alta nuevos defectos para asociar su matriz inicial respetando las reglas maestras.
    */

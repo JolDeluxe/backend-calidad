@@ -6,6 +6,13 @@ import { offlineAuthService } from "../../auth/services/offline-auth.service";
 import { permissionsService } from "../../auth/services/permissions.service";
 import { inspeccionesLegacyService, type LegacyWriteResult } from "./inspecciones-legacy.service";
 import { matrizVisibilidadDefectosService } from "../../defectos/services/matriz-visibilidad.service";
+import { terminalsService } from "../../auth/services/terminals.service";
+import {
+  clasificarDefectoEnTerminal,
+  construirNomenclaturaDefecto,
+  resolverLugarDeteccionTerminal,
+  type TerminalDepartamentoSnapshotItem,
+} from "../utils/nomenclatura-defectos";
 import {
   NOMBRES_MESES_ES,
   formatearDiaDisponible,
@@ -18,6 +25,7 @@ import {
   getRangoMesUtc,
   getRangoPersonalizadoUtc,
   getRangoSemanaIsoUtc,
+  getRangoUltimosMesesUtc,
 } from "../../../utils/timezone";
 
 export interface ItemDefectoInput {
@@ -43,6 +51,15 @@ export interface CreateInspeccionParams {
     id: number;
     nombre: string;
     departamentoId: number;
+    departamentosIds?: number[];
+    departamentosActivos?: Array<{
+      departamentoId: number;
+      codigo: string;
+      nombre: string;
+      numeroLineas?: number;
+      esPrincipal: boolean;
+    }>;
+    lugarDeteccion?: string;
   };
   reqInfo?: {
     ip?: string;
@@ -854,13 +871,75 @@ export class InspeccionesService {
       );
     }
 
-    // 1. El departamento auditor se obtiene EXCLUSIVAMENTE de la terminal física validada por el servidor
+    // 1. El departamento auditor de cabecera se obtiene del departamento principal de la terminal física
     if (!terminal || !terminal.departamentoId) {
       throw new BadRequestError(
         "No es posible capturar inspecciones: se requiere una estación de trabajo física vinculada y activa."
       );
     }
     const deptoAuditoriaId = terminal.departamentoId;
+
+    // Resolver departamentos activos asociados a la terminal (1:N o M:N)
+    let departamentosActivosTerminal: TerminalDepartamentoSnapshotItem[] = [];
+    if (terminal.departamentosActivos && terminal.departamentosActivos.length > 0) {
+      departamentosActivosTerminal = terminal.departamentosActivos.map((d) => ({
+        departamentoId: d.departamentoId,
+        codigo: d.codigo,
+        nombre: d.nombre,
+        esPrincipal: d.esPrincipal,
+      }));
+    } else if (terminal.id) {
+      const terminalDb = await prisma.terminal.findUnique({
+        where: { id: terminal.id },
+        include: {
+          departamento: true,
+          departamentos: {
+            where: { activo: true },
+            include: { departamento: true },
+            orderBy: [{ esPrincipal: "desc" }, { departamentoId: "asc" }],
+          },
+        },
+      });
+      if (terminalDb) {
+        departamentosActivosTerminal = terminalsService
+          .extractDepartamentosActivos(terminalDb)
+          .map((d) => ({
+            departamentoId: d.departamentoId,
+            codigo: d.codigo,
+            nombre: d.nombre,
+            esPrincipal: d.esPrincipal,
+          }));
+      }
+    }
+
+    const deptoAuditoria = await prisma.departamento.findUnique({
+      where: { id: deptoAuditoriaId },
+      select: { id: true, codigo: true, nombre: true },
+    });
+
+    if (departamentosActivosTerminal.length === 0 && deptoAuditoria) {
+      departamentosActivosTerminal = [
+        {
+          departamentoId: deptoAuditoria.id,
+          codigo: deptoAuditoria.codigo,
+          nombre: deptoAuditoria.nombre,
+          esPrincipal: true,
+        },
+      ];
+    }
+
+    const terminalDepartamentosIds = Array.from(
+      new Set([
+        deptoAuditoriaId,
+        ...departamentosActivosTerminal.map((d) => d.departamentoId),
+      ])
+    );
+
+    const lugarDeteccionTerminal = resolverLugarDeteccionTerminal({
+      terminalNombre: terminal.nombre,
+      departamentoPrincipalNombre: deptoAuditoria?.nombre,
+      departamentosActivos: departamentosActivosTerminal,
+    });
 
     if (lineaId) {
       const linea = await prisma.linea.findUnique({
@@ -871,11 +950,11 @@ export class InspeccionesService {
         throw new BadRequestError("La línea de producción especificada no es válida o está inactiva.");
       }
 
-      // Validar que el departamento auditor pertenezca a la línea especificada
+      // Validar que al menos uno de los departamentos activos de la terminal pertenezca a la línea especificada
       const deptoEnLinea = await prisma.departamentoLinea.findFirst({
         where: {
           lineaId,
-          departamentoId: deptoAuditoriaId,
+          departamentoId: { in: terminalDepartamentosIds },
           activo: true,
           eliminadoEn: null,
         },
@@ -904,8 +983,8 @@ export class InspeccionesService {
           select: { id: true, codigo: true, nombre: true },
         },
         etapas: {
-          where: { departamentoId: deptoAuditoriaId },
-          select: { permitido: true },
+          where: { departamentoId: { in: terminalDepartamentosIds } },
+          select: { departamentoId: true, permitido: true },
         },
       },
     });
@@ -918,38 +997,53 @@ export class InspeccionesService {
       );
     }
 
-    // Validar matriz de visibilidad / etapas de detección: verificar si cada defecto está permitido en deptoAuditoriaId
-    const deptoAuditoria = await prisma.departamento.findUnique({
-      where: { id: deptoAuditoriaId },
-      select: { id: true, codigo: true, nombre: true },
-    });
-
+    // Validar matriz de visibilidad / etapas de detección: verificar si cada defecto está permitido
+    // en al menos uno de los departamentos activos asociados a la terminal
     const defectosMap = new Map(defectosEncontrados.map((d) => [d.id, d]));
     for (const defId of defectosIds) {
       const def = defectosMap.get(defId)!;
-      // Resolución unificada: excepción individual > matriz maestra departamento > compatibilidad
-      const excepcion = def.etapas[0]?.permitido;
-      const resVisibilidad = await matrizVisibilidadDefectosService.resolverVisibilidadConEntidades(
-        def.departamentoId,
-        deptoAuditoriaId,
-        excepcion,
-        def.id
-      );
+      const etapasPorDepto = new Map(def.etapas.map((e) => [e.departamentoId, e.permitido]));
+      let permitidoEnTerminal = false;
 
-      if (!resVisibilidad.permitido) {
+      for (const deptoTermId of terminalDepartamentosIds) {
+        const excepcion = etapasPorDepto.get(deptoTermId);
+        const resVisibilidad = await matrizVisibilidadDefectosService.resolverVisibilidadConEntidades(
+          def.departamentoId,
+          deptoTermId,
+          excepcion,
+          def.id
+        );
+        if (resVisibilidad.permitido) {
+          permitidoEnTerminal = true;
+          break;
+        }
+      }
+
+      if (!permitidoEnTerminal) {
         throw new BadRequestError(
-          `El defecto ${def.clave} ('${def.defecto}') no está permitido para inspección en la etapa de ${deptoAuditoria?.nombre || "este departamento"}.`
+          `El defecto ${def.clave} ('${def.defecto}') no está permitido para inspección en la etapa de ${lugarDeteccionTerminal || deptoAuditoria?.nombre || "este departamento"}.`
         );
       }
     }
 
-    // Resolver departamento responsable (propietario): siempre se asigna desde el catálogo oficial
+    // Resolver departamento propietario, lugar de detección, externo/propio y nomenclatura por cada defecto
     const detallesPreparados = detalles.map((item) => {
       const def = defectosMap.get(item.defectoId)!;
       const defDeptoId = def.departamentoId;
+      const clasificacion = clasificarDefectoEnTerminal({
+        terminalNombre: terminal.nombre,
+        departamentoPrincipalNombre: deptoAuditoria?.nombre,
+        departamentosActivos: departamentosActivosTerminal,
+        defectoDepartamentoId: def.departamentoId,
+        defectoDepartamentoNombre: def.departamento.nombre,
+      });
+
       return {
         ...item,
         defDeptoId,
+        esDeptoExterno: clasificacion.esDeptoExterno,
+        lugarDeteccionTexto: clasificacion.lugarDeteccionTexto,
+        nomenclaturaTexto: clasificacion.nomenclaturaTexto,
       };
     });
 
@@ -983,6 +1077,9 @@ export class InspeccionesService {
           inspectorId: usuarioId,
           departamentoAuditoriaId: deptoAuditoriaId,
           terminalId: terminal?.id || null,
+          terminalTexto: terminal.nombre,
+          lugarDeteccionTexto: lugarDeteccionTerminal,
+          departamentosTerminalSnapshot: departamentosActivosTerminal as unknown as Prisma.InputJsonValue,
           lineaId: lineaId || null,
           lineaTexto: lineaTexto || (lineaId ? null : "L1"),
           horma: hormaEfectiva,
@@ -999,6 +1096,9 @@ export class InspeccionesService {
           defectoId: item.defectoId,
           defDeptoId: item.defDeptoId,
           paresDefectuosos: item.paresDefectuosos,
+          esDeptoExterno: item.esDeptoExterno,
+          lugarDeteccionTexto: item.lugarDeteccionTexto,
+          nomenclaturaTexto: item.nomenclaturaTexto,
           notas: item.notas || null,
           creadoPor: usuarioId,
         })),
@@ -1114,7 +1214,20 @@ export class InspeccionesService {
    */
   async sincronizarLoteOffline(params: {
     items: SyncOfflineItemInput[];
-    terminal: { id: number; nombre: string; departamentoId: number };
+    terminal: {
+      id: number;
+      nombre: string;
+      departamentoId: number;
+      departamentosIds?: number[];
+      departamentosActivos?: Array<{
+        departamentoId: number;
+        codigo: string;
+        nombre: string;
+        numeroLineas?: number;
+        esPrincipal: boolean;
+      }>;
+      lugarDeteccion?: string;
+    };
     reqInfo?: { ip?: string; userAgent?: string; method?: string; url?: string };
   }): Promise<{
     resultados: SyncOfflineItemResult[];
@@ -1165,7 +1278,7 @@ export class InspeccionesService {
           continue;
         }
 
-        if (tokenPayload.terminalId !== terminal.id || tokenPayload.departamentoId !== terminal.departamentoId) {
+        if (tokenPayload.terminalId !== terminal.id) {
           resultados.push({
             idLocalCliente: item.idLocalCliente,
             inspectorId: item.inspectorId,
@@ -1176,6 +1289,50 @@ export class InspeccionesService {
           });
           continue;
         }
+
+        const relacionesTerminalDb = await prisma.terminalDepartamento.findMany({
+          where: { terminalId: terminal.id },
+          include: { departamento: { select: { id: true, codigo: true, nombre: true } } },
+        });
+
+        const activosActualesIds = new Set<number>([
+          terminal.departamentoId,
+          ...(terminal.departamentosIds || []),
+          ...relacionesTerminalDb.filter((r) => r.activo).map((r) => r.departamentoId),
+        ]);
+
+        const historicosTerminalIds = new Set<number>([
+          ...activosActualesIds,
+          ...relacionesTerminalDb.map((r) => r.departamentoId),
+        ]);
+
+        const tokenDeptosIds =
+          Array.isArray(tokenPayload.departamentosIds) && tokenPayload.departamentosIds.length > 0
+            ? Array.from(new Set([tokenPayload.departamentoId, ...tokenPayload.departamentosIds]))
+            : [tokenPayload.departamentoId];
+
+        const deptoPrincipalSigueActivo = activosActualesIds.has(tokenPayload.departamentoId);
+        const todosDeptosTokenSiguenActivos = tokenDeptosIds.every((id) =>
+          activosActualesIds.has(id)
+        );
+        const algunDeptoNuncaPertenecio = tokenDeptosIds.some(
+          (id) => !historicosTerminalIds.has(id)
+        );
+
+        if (algunDeptoNuncaPertenecio) {
+          resultados.push({
+            idLocalCliente: item.idLocalCliente,
+            inspectorId: item.inspectorId,
+            estado: "RECHAZADA",
+            legacySincronizado: false,
+            mensaje: "El token offline pertenece a una terminal o departamento distinto a esta estación física",
+            codigoHttp: 403,
+          });
+          continue;
+        }
+
+        const configTerminalCambioMientrasOffline =
+          !deptoPrincipalSigueActivo || !todosDeptosTokenSiguenActivos;
 
         // 3. Evaluar instante de captura frente a la ventana de vigencia de 48 horas del token
         const fechaCapturaMs = Date.parse(item.fechaCapturaDispositivo);
@@ -1259,12 +1416,44 @@ export class InspeccionesService {
           motivoRevision = "Sincronizada tras el vencimiento del token offline (capturada dentro de la ventana válida de 48h).";
         }
 
+        if (configTerminalCambioMientrasOffline) {
+          requiereRevision = true;
+          const msgConfig =
+            "La configuración de departamentos asociados de la terminal cambió antes de la sincronización.";
+          motivoRevision = motivoRevision ? `${motivoRevision} | ${msgConfig}` : msgConfig;
+        }
+
         if (item.esContingencia) {
           requiereRevision = true;
           motivoRevision = motivoRevision
             ? `${motivoRevision} | Contingencia: ${item.motivoContingencia || "Sin detalle"}`
             : `Captura en contingencia: ${item.motivoContingencia || "Lote no localizado en catálogo local"}`;
         }
+
+        // Reconstruir snapshot de departamentos y nombre de terminal al momento de emitir el token si la terminal cambió
+        const deptosTokenSnapshot = relacionesTerminalDb
+          .filter((r) => tokenDeptosIds.includes(r.departamentoId))
+          .map((r) => ({
+            departamentoId: r.departamento.id,
+            codigo: r.departamento.codigo,
+            nombre: r.departamento.nombre,
+            esPrincipal: r.departamentoId === tokenPayload.departamentoId,
+          }));
+
+        const terminalParaCaptura = {
+          ...terminal,
+          nombre: tokenPayload.terminalNombre || terminal.nombre,
+          departamentoId: terminal.departamentoId,
+          departamentosIds: configTerminalCambioMientrasOffline
+            ? Array.from(new Set([...activosActualesIds, ...tokenDeptosIds]))
+            : Array.from(activosActualesIds),
+          departamentosActivos:
+            deptosTokenSnapshot.length > 0 &&
+            (configTerminalCambioMientrasOffline ||
+              tokenPayload.terminalNombre !== terminal.nombre)
+              ? deptosTokenSnapshot
+              : terminal.departamentosActivos,
+        };
 
         // 5. Ejecutar registro idempotente en MySQL + reconciliación legacy TXT
         const { inspeccion, repetida, legacyResult } = await this.registrarInspeccion({
@@ -1279,7 +1468,7 @@ export class InspeccionesService {
           usuarioId: item.inspectorId,
           claveIdempotencia: item.idLocalCliente,
           estadoCabecera: requiereRevision ? "PENDIENTE" : "RECHAZADO",
-          terminal,
+          terminal: terminalParaCaptura,
           reqInfo,
         });
 
@@ -1597,8 +1786,13 @@ export class InspeccionesService {
       };
     }
 
+    // Para "ultimos" (Recientes), acotar la ventana temporal a los últimos 6 meses hacia atrás
+    // para evitar arrastrar registros históricos antiguos (ej. de años anteriores).
+    const { inicioUtc: inicio6MesesUtc } = getRangoUltimosMesesUtc(6);
     return {
       periodoEfectivo: "ultimos",
+      inicioUtc: inicio6MesesUtc,
+      finUtc: params.soloEliminados ? undefined : finHoyUtc,
     };
   }
 
@@ -1784,37 +1978,62 @@ export class InspeccionesService {
       usuariosEliminadores.map((u) => [u.id, u.nombre || u.usuario])
     );
 
-    return detalles.map((d) => ({
-      id: d.id,
-      inspeccionId: d.inspeccionId,
-      folio: d.inspeccion.folio,
-      departamentoAuditoria: d.inspeccion.departamentoAuditoria.nombre,
-      departamentoAuditoriaCodigo: d.inspeccion.departamentoAuditoria.codigo,
-      fecha: d.inspeccion.fechaInspeccion,
-      lista: d.inspeccion.lote.lista,
-      lote: d.inspeccion.lote.lote,
-      linea: d.inspeccion.lineaTexto || d.inspeccion.linea?.nombre || "L1",
-      modelo: d.inspeccion.lote.modelo,
-      descripcion: d.inspeccion.lote.descripcion,
-      horma: d.inspeccion.horma || d.inspeccion.lote.horma || "N/A",
-      cliente: d.inspeccion.lote.cliente,
-      cantidadLote: Number(d.inspeccion.lote.cantidad),
-      defDepto: d.departamentoResponsable.nombre,
-      defectoId: d.defecto.id,
-      defectoClave: d.defecto.clave,
-      defectoNombre: d.defecto.defecto,
-      clasificacion: d.defecto.clasificacion,
-      paresDefectuosos: d.paresDefectuosos,
-      notas: d.notas,
-      inspectorId: d.inspeccion.inspectorId,
-      usuario: d.inspeccion.inspector.nombre || d.inspeccion.inspector.usuario,
-      terminal: d.inspeccion.terminal?.nombre ?? null,
-      terminalId: d.inspeccion.terminal?.id ?? null,
-      eliminadoEn: d.eliminadoEn,
-      eliminadoPor: d.eliminadoPor,
-      eliminadoPorNombre: d.eliminadoPor ? mapEliminadores.get(d.eliminadoPor) || `Usuario #${d.eliminadoPor}` : null,
-      eliminadoMotivo: d.eliminadoMotivo,
-    }));
+    return detalles.map((d) => {
+      const deptoAuditoriaNombre = d.inspeccion.departamentoAuditoria.nombre;
+      const defDeptoNombre = d.departamentoResponsable.nombre;
+      const terminalNombre =
+        d.inspeccion.terminalTexto ?? d.inspeccion.terminal?.nombre ?? null;
+      const lugarDeteccion =
+        d.lugarDeteccionTexto ??
+        d.inspeccion.lugarDeteccionTexto ??
+        deptoAuditoriaNombre;
+      const esDeptoExterno =
+        typeof d.esDeptoExterno === "boolean"
+          ? d.esDeptoExterno
+          : d.defDeptoId !== d.inspeccion.departamentoAuditoriaId;
+      const nomenclatura =
+        d.nomenclaturaTexto ??
+        construirNomenclaturaDefecto(defDeptoNombre, lugarDeteccion);
+
+      return {
+        id: d.id,
+        inspeccionId: d.inspeccionId,
+        folio: d.inspeccion.folio,
+        departamentoAuditoria: deptoAuditoriaNombre,
+        departamentoAuditoriaCodigo: d.inspeccion.departamentoAuditoria.codigo,
+        fecha: d.inspeccion.fechaInspeccion,
+        lista: d.inspeccion.lote.lista,
+        lote: d.inspeccion.lote.lote,
+        linea: d.inspeccion.lineaTexto || d.inspeccion.linea?.nombre || "L1",
+        modelo: d.inspeccion.lote.modelo,
+        descripcion: d.inspeccion.lote.descripcion,
+        horma: d.inspeccion.horma || d.inspeccion.lote.horma || "N/A",
+        cliente: d.inspeccion.lote.cliente,
+        cantidadLote: Number(d.inspeccion.lote.cantidad),
+        defDepto: defDeptoNombre,
+        defectoId: d.defecto.id,
+        defectoClave: d.defecto.clave,
+        defectoNombre: d.defecto.defecto,
+        clasificacion: d.defecto.clasificacion,
+        paresDefectuosos: d.paresDefectuosos,
+        notas: d.notas,
+        inspectorId: d.inspeccion.inspectorId,
+        usuario: d.inspeccion.inspector.nombre || d.inspeccion.inspector.usuario,
+        terminal: terminalNombre,
+        terminalId: d.inspeccion.terminal?.id ?? d.inspeccion.terminalId ?? null,
+        lugarDeteccion,
+        esDeptoExterno,
+        nomenclatura,
+        departamentosTerminalSnapshot:
+          d.inspeccion.departamentosTerminalSnapshot ?? null,
+        eliminadoEn: d.eliminadoEn,
+        eliminadoPor: d.eliminadoPor,
+        eliminadoPorNombre: d.eliminadoPor
+          ? mapEliminadores.get(d.eliminadoPor) || `Usuario #${d.eliminadoPor}`
+          : null,
+        eliminadoMotivo: d.eliminadoMotivo,
+      };
+    });
   }
 
   /**

@@ -14,6 +14,15 @@ declare global {
         id: number;
         nombre: string;
         departamentoId: number;
+        departamentosIds?: number[];
+        departamentosActivos?: Array<{
+          departamentoId: number;
+          codigo: string;
+          nombre: string;
+          numeroLineas: number;
+          esPrincipal: boolean;
+        }>;
+        lugarDeteccion?: string;
       };
     }
   }
@@ -136,6 +145,9 @@ export const requireTerminal = async (req: Request, _res: Response, next: NextFu
       id: terminal.id,
       nombre: terminal.nombre,
       departamentoId: terminal.departamentoId,
+      departamentosIds: terminal.departamentosIds,
+      departamentosActivos: terminal.departamentosActivos,
+      lugarDeteccion: terminal.lugarDeteccion,
     };
 
     next();
@@ -181,6 +193,9 @@ export const authenticateOrTerminal = async (req: Request, _res: Response, next:
           id: terminal.id,
           nombre: terminal.nombre,
           departamentoId: terminal.departamentoId,
+          departamentosIds: terminal.departamentosIds,
+          departamentosActivos: terminal.departamentosActivos,
+          lugarDeteccion: terminal.lugarDeteccion,
         };
       } catch (err) {
         if (!userValid) {

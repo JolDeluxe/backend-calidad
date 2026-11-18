@@ -17,12 +17,15 @@ import { prisma } from "../../config/database";
 import {
   createTerminalSchema,
   reasignarTerminalSchema,
+  renameTerminalSchema,
+  updateTerminalDepartamentosSchema,
   revocarTerminalSchema,
   terminalIdParamSchema,
   solicitarRecuperacionSchema,
   canjearRecuperacionSchema,
   verificarAutorizacionSuperAdminSchema,
 } from "./terminals.schema";
+import { resolverLugarDeteccionTerminal } from "../inspecciones/utils/nomenclatura-defectos";
 
 const router = Router();
 
@@ -55,6 +58,9 @@ router.get("/estado", async (req, res) => {
           departamentoNombre: terminal.departamento.nombre,
           departamentoCodigo: terminal.departamento.codigo,
           numeroLineas: terminal.departamento.numeroLineas,
+          departamentos: terminal.departamentosActivos,
+          departamentosIds: terminal.departamentosIds,
+          lugarDeteccion: terminal.lugarDeteccion,
           estado: terminal.estado,
         },
       },
@@ -114,10 +120,37 @@ router.get(
   requirePermission("terminales.consultar"),
   async (_req, res, next) => {
     try {
-      const terminales = await prisma.terminal.findMany({
-        include: { departamento: { select: { id: true, codigo: true, nombre: true } } },
+      const terminalesRaw = await prisma.terminal.findMany({
+        include: {
+          departamento: { select: { id: true, codigo: true, nombre: true, numeroLineas: true, estado: true } },
+          departamentos: {
+            where: { activo: true },
+            include: {
+              departamento: {
+                select: { id: true, codigo: true, nombre: true, numeroLineas: true, estado: true },
+              },
+            },
+            orderBy: [{ esPrincipal: "desc" }, { departamentoId: "asc" }],
+          },
+        },
         orderBy: { id: "asc" },
       });
+
+      const terminales = terminalesRaw.map((t) => {
+        const departamentosActivos = terminalsService.extractDepartamentosActivos(t);
+        const lugarDeteccion = resolverLugarDeteccionTerminal({
+          terminalNombre: t.nombre,
+          departamentoPrincipalNombre: t.departamento.nombre,
+          departamentosActivos,
+        });
+        return {
+          ...t,
+          departamentosActivos,
+          departamentosIds: departamentosActivos.map((d) => d.departamentoId),
+          lugarDeteccion,
+        };
+      });
+
       sendSuccess(res, terminales, "Terminales obtenidas exitosamente");
     } catch (error) {
       next(error);
@@ -134,10 +167,13 @@ router.post(
   validate({ body: createTerminalSchema }),
   async (req, res, next) => {
     try {
-      const { nombre, departamentoId } = req.body;
+      const { nombre, departamentoId, departamentosIds } = req.body;
       const resultado = await terminalsService.createTerminal({
         nombre: nombre?.trim() || undefined,
         departamentoId: Number(departamentoId),
+        departamentosIds: Array.isArray(departamentosIds)
+          ? departamentosIds.map(Number)
+          : undefined,
         usuarioAuditId: req.user?.usuarioId,
       });
       sendCreated(res, resultado, "Terminal vinculada exitosamente");
@@ -286,7 +322,66 @@ router.post(
   },
 );
 
-// Reasignar departamento a terminal (SUPER_ADMIN)
+// Cambiar nombre visible personalizado de terminal (SUPER_ADMIN)
+router.patch(
+  "/:id/nombre",
+  authenticate,
+  requireRole(["SUPER_ADMIN"]),
+  requirePermission("terminales.gestionar"),
+  validate({
+    params: terminalIdParamSchema,
+    body: renameTerminalSchema,
+  }),
+  async (req, res, next) => {
+    try {
+      const terminalId = Number(req.params.id);
+      const { nombre, motivo } = req.body;
+      const actualizada = await terminalsService.renameTerminal({
+        terminalId,
+        nombre,
+        motivo,
+        usuarioAuditId: req.user?.usuarioId,
+      });
+      sendSuccess(res, actualizada, "Nombre de terminal actualizado exitosamente");
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Actualizar departamentos asociados y departamento principal de una terminal (SUPER_ADMIN)
+router.put(
+  "/:id/departamentos",
+  authenticate,
+  requireRole(["SUPER_ADMIN"]),
+  requirePermission("terminales.gestionar"),
+  validate({
+    params: terminalIdParamSchema,
+    body: updateTerminalDepartamentosSchema,
+  }),
+  async (req, res, next) => {
+    try {
+      const terminalId = Number(req.params.id);
+      const { departamentosIds, departamentoPrincipalId, motivo } = req.body;
+      const actualizada = await terminalsService.updateTerminalDepartamentos({
+        terminalId,
+        departamentosIds: departamentosIds.map(Number),
+        departamentoPrincipalId: Number(departamentoPrincipalId),
+        motivo,
+        usuarioAuditId: req.user?.usuarioId,
+      });
+      sendSuccess(
+        res,
+        actualizada,
+        "Departamentos asociados a la terminal actualizados exitosamente",
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Reasignar departamento a terminal (SUPER_ADMIN - mantiene compatibilidad 1:N sincronizando tabla intermedia)
 router.patch(
   "/:id/departamento",
   authenticate,
@@ -300,6 +395,7 @@ router.patch(
     try {
       const terminalId = Number(req.params.id);
       const { departamentoId, motivo } = req.body;
+      const nuevoDeptoId = Number(departamentoId);
       const motivoTexto = motivo?.trim() || "Reasignación de departamento de terminal";
 
       const actualizada = await prisma.$transaction(async (tx) => {
@@ -307,11 +403,58 @@ router.patch(
           where: { id: terminalId },
           include: { departamento: true },
         });
+        if (!previa) {
+          throw new NotFoundError("Terminal no encontrada");
+        }
+
+        // Sincronizar en terminales_departamentos manteniendo exactamente 1 principal activo
+        await tx.terminalDepartamento.updateMany({
+          where: { terminalId, esPrincipal: true },
+          data: { esPrincipal: false, actualizadoPor: req.user?.usuarioId ?? null },
+        });
+
+        await tx.terminalDepartamento.updateMany({
+          where: { terminalId, departamentoId: { not: nuevoDeptoId }, activo: true },
+          data: {
+            activo: false,
+            esPrincipal: false,
+            actualizadoPor: req.user?.usuarioId ?? null,
+          },
+        });
+
+        await tx.terminalDepartamento.upsert({
+          where: {
+            unique_terminal_departamento: {
+              terminalId,
+              departamentoId: nuevoDeptoId,
+            },
+          },
+          create: {
+            terminalId,
+            departamentoId: nuevoDeptoId,
+            esPrincipal: true,
+            activo: true,
+            creadoPor: req.user?.usuarioId ?? null,
+            actualizadoPor: req.user?.usuarioId ?? null,
+          },
+          update: {
+            esPrincipal: true,
+            activo: true,
+            actualizadoPor: req.user?.usuarioId ?? null,
+          },
+        });
 
         const updated = await tx.terminal.update({
           where: { id: terminalId },
-          data: { departamentoId: Number(departamentoId) },
-          include: { departamento: true },
+          data: { departamentoId: nuevoDeptoId },
+          include: {
+            departamento: true,
+            departamentos: {
+              where: { activo: true },
+              include: { departamento: true },
+              orderBy: [{ esPrincipal: "desc" }, { departamentoId: "asc" }],
+            },
+          },
         });
 
         // Auditoría unificada centralizada
@@ -321,11 +464,11 @@ router.patch(
             modulo: "TERMINALES",
             entidad: "terminal",
             entidadId: String(terminalId),
-            descripcion: `Terminal '${updated.nombre}' reasignada de departamento '${previa?.departamento.nombre}' a '${updated.departamento.nombre}'`,
+            descripcion: `Terminal '${updated.nombre}' reasignada de departamento '${previa.departamento.nombre}' a '${updated.departamento.nombre}'`,
             motivo: motivoTexto,
             valoresAnteriores: {
-              departamentoId: previa?.departamentoId,
-              departamentoNombre: previa?.departamento.nombre,
+              departamentoId: previa.departamentoId,
+              departamentoNombre: previa.departamento.nombre,
             },
             valoresPosteriores: {
               departamentoId: updated.departamentoId,

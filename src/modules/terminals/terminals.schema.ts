@@ -5,16 +5,19 @@ export const createTerminalSchema = z.object({
   nombre: z
     .string()
     .trim()
-    .min(3, "El nombre de la terminal debe tener al menos 3 caracteres")
+    .min(2, "El nombre de la terminal debe tener al menos 2 caracteres")
     .max(60, "El nombre de la terminal no debe exceder los 60 caracteres")
     .optional(),
   departamentoId: z.coerce
     .number({ required_error: "Debe seleccionar un departamento válido" })
     .int("El ID de departamento debe ser un entero")
     .positive("Debe seleccionar un departamento válido"),
+  departamentosIds: z
+    .array(z.coerce.number().int().positive())
+    .optional(),
 });
 
-// 2. Reasignación de departamento de terminal (SUPER_ADMIN)
+// 2. Reasignación de departamento principal de terminal (SUPER_ADMIN)
 export const reasignarTerminalSchema = z.object({
   departamentoId: z.coerce
     .number({ required_error: "Debe seleccionar un departamento válido" })
@@ -26,6 +29,42 @@ export const reasignarTerminalSchema = z.object({
     .max(255, "El motivo no debe exceder los 255 caracteres")
     .optional(),
 });
+
+// 2.1 Cambio de nombre visible personalizado de terminal (SUPER_ADMIN)
+export const renameTerminalSchema = z.object({
+  nombre: z
+    .string({ required_error: "El nombre de la terminal es obligatorio" })
+    .trim()
+    .min(2, "El nombre de la terminal debe tener al menos 2 caracteres")
+    .max(60, "El nombre de la terminal no debe exceder los 60 caracteres"),
+  motivo: z
+    .string()
+    .trim()
+    .max(255, "El motivo no debe exceder los 255 caracteres")
+    .optional(),
+});
+
+// 2.2 Configuración multidepartamental y designación de principal de terminal (SUPER_ADMIN)
+export const updateTerminalDepartamentosSchema = z
+  .object({
+    departamentosIds: z
+      .array(z.coerce.number().int().positive())
+      .min(1, "La terminal debe tener al menos un departamento asociado"),
+    departamentoPrincipalId: z.coerce
+      .number({ required_error: "Debe seleccionar el departamento principal" })
+      .int("El ID del departamento principal debe ser un entero")
+      .positive("Debe seleccionar un departamento principal válido"),
+    motivo: z
+      .string()
+      .trim()
+      .max(255, "El motivo no debe exceder los 255 caracteres")
+      .optional(),
+  })
+  .refine((data) => data.departamentosIds.includes(data.departamentoPrincipalId), {
+    message:
+      "El departamento designado como principal debe formar parte de los departamentos asociados",
+    path: ["departamentoPrincipalId"],
+  });
 
 // 3. Revocación o bloqueo de terminal (SUPER_ADMIN)
 export const revocarTerminalSchema = z.object({

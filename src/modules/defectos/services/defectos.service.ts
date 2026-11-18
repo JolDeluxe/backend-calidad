@@ -12,6 +12,7 @@ export interface GetDefectosFiltros {
   clasificacion?: "CRITICO" | "MAYOR" | "MENOR";
   departamentoId?: number;
   etapaId?: number;
+  etapasIds?: number[];
   categoriaDepartamentoId?: number;
   lineaId?: number;
   lineasIds?: number[];
@@ -68,7 +69,16 @@ export class DefectosService {
       };
     }
 
-    if (filtros.etapaId) {
+    if (filtros.etapasIds && filtros.etapasIds.length > 0) {
+      const whereVisibilidad =
+        await matrizVisibilidadDefectosService.construirWhereFiltroDefectosPorDepartamentosDeteccion(
+          filtros.etapasIds
+        );
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        whereVisibilidad,
+      ];
+    } else if (filtros.etapaId) {
       // Resolución unificada: se utiliza el resolver centralizado de la matriz de visibilidad por departamento
       const whereVisibilidad = await matrizVisibilidadDefectosService.construirWhereFiltroDefectosPorDepartamentoDeteccion(
         filtros.etapaId
@@ -242,7 +252,15 @@ export class DefectosService {
    * 3. 'NO_PERMITIDO': Existe y está activo, pero no está autorizado para inspección en la etapa solicitada.
    * 4. 'VALIDO': Existe, está activo y está autorizado en la etapa.
    */
-  async validarDefectoParaCaptura(clave: number, etapaId: number) {
+  async validarDefectoParaCaptura(clave: number, etapaIdOrIds: number | number[]) {
+    const etapasIds = Array.from(
+      new Set(
+        (Array.isArray(etapaIdOrIds) ? etapaIdOrIds : [etapaIdOrIds])
+          .map(Number)
+          .filter((id) => Number.isInteger(id) && id > 0)
+      )
+    );
+
     const defecto = await prisma.defecto.findFirst({
       where: { clave },
       include: {
@@ -250,7 +268,7 @@ export class DefectosService {
           select: { id: true, codigo: true, nombre: true },
         },
         etapas: {
-          where: { departamentoId: etapaId },
+          where: { departamentoId: { in: etapasIds } },
           select: { id: true, departamentoId: true, permitido: true },
         },
         departamentos: {
@@ -289,16 +307,24 @@ export class DefectosService {
       };
     }
 
-    const etapaRelacion = defecto.etapas[0];
-    const excepcion = etapaRelacion?.permitido;
-    const resVis = await matrizVisibilidadDefectosService.resolverVisibilidadConEntidades(
-      defecto.departamentoId,
-      etapaId,
-      excepcion,
-      defecto.id
-    );
+    const etapasMap = new Map(defecto.etapas.map((e) => [e.departamentoId, e.permitido]));
+    let permitidoEnAlguno = false;
 
-    if (!resVis.permitido) {
+    for (const etapaId of etapasIds) {
+      const excepcion = etapasMap.get(etapaId);
+      const resVis = await matrizVisibilidadDefectosService.resolverVisibilidadConEntidades(
+        defecto.departamentoId,
+        etapaId,
+        excepcion,
+        defecto.id
+      );
+      if (resVis.permitido) {
+        permitidoEnAlguno = true;
+        break;
+      }
+    }
+
+    if (!permitidoEnAlguno) {
       return {
         estado: "NO_PERMITIDO" as const,
         mensaje: "Defecto no permitido",

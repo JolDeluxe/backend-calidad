@@ -17,6 +17,7 @@ export class DefectosController {
         departamentoId,
         categoriaDepartamentoId,
         etapaId,
+        etapasIds,
         lineaId,
         lineasIds,
         activo,
@@ -26,6 +27,19 @@ export class DefectosController {
         page,
       } = req.query as any;
 
+      let etapasEfectivas: number[] | undefined =
+        Array.isArray(etapasIds) && etapasIds.length > 0 ? etapasIds : undefined;
+
+      if (
+        !etapasEfectivas &&
+        etapaId &&
+        req.terminal?.departamentosIds &&
+        req.terminal.departamentosIds.length > 1 &&
+        req.terminal.departamentosIds.includes(Number(etapaId))
+      ) {
+        etapasEfectivas = req.terminal.departamentosIds;
+      }
+
       const defectos = await defectosService.getDefectos({
         clave,
         texto,
@@ -34,6 +48,7 @@ export class DefectosController {
         departamentoId,
         categoriaDepartamentoId,
         etapaId: etapaId ? Number(etapaId) : undefined,
+        etapasIds: etapasEfectivas,
         lineaId: lineaId ? Number(lineaId) : undefined,
         lineasIds: Array.isArray(lineasIds) && lineasIds.length > 0 ? lineasIds : undefined,
         activo,
@@ -51,8 +66,26 @@ export class DefectosController {
 
   async validarDefectoCaptura(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { clave, etapaId } = req.query as unknown as { clave: number; etapaId: number };
-      const resultado = await defectosService.validarDefectoParaCaptura(clave, etapaId);
+      const { clave, etapaId, etapasIds } = req.query as unknown as {
+        clave: number;
+        etapaId?: number;
+        etapasIds?: number[];
+      };
+
+      let targetEtapas: number | number[] = etapaId || 0;
+      if (Array.isArray(etapasIds) && etapasIds.length > 0) {
+        targetEtapas = etapasIds;
+      } else if (
+        req.terminal?.departamentosIds &&
+        req.terminal.departamentosIds.length > 1 &&
+        (!etapaId || req.terminal.departamentosIds.includes(Number(etapaId)))
+      ) {
+        targetEtapas = req.terminal.departamentosIds;
+      } else if (!etapaId && req.terminal?.departamentoId) {
+        targetEtapas = req.terminal.departamentoId;
+      }
+
+      const resultado = await defectosService.validarDefectoParaCaptura(clave, targetEtapas);
       sendSuccess(res, resultado, resultado.mensaje);
     } catch (error) {
       next(error);

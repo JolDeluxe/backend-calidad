@@ -54,6 +54,9 @@ export const resolverAlcanceHistorial = async (
           id: terminal.id,
           nombre: terminal.nombre,
           departamentoId: terminal.departamentoId,
+          departamentosIds: terminal.departamentosIds,
+          departamentosActivos: terminal.departamentosActivos,
+          lugarDeteccion: terminal.lugarDeteccion,
         };
       } catch {
         // Si la terminal fue revocada o desactivada, no bloqueamos la consulta del historial:
@@ -80,7 +83,9 @@ export const resolverAlcanceHistorial = async (
       // ROL INSPECTOR:
       // El contexto departamental de trabajo se determina EXCLUSIVAMENTE mediante la terminal física autenticada.
       // Un inspector no está asignado permanentemente a un departamento; puede trabajar desde cualquier terminal.
-      if (req.terminal?.departamentoId) {
+      if (req.terminal?.departamentosIds && req.terminal.departamentosIds.length > 0) {
+        departamentosAlcanceIds = req.terminal.departamentosIds;
+      } else if (req.terminal?.departamentoId) {
         departamentosAlcanceIds = [req.terminal.departamentoId];
       } else {
         departamentosAlcanceIds = [];

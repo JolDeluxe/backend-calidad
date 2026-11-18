@@ -103,6 +103,7 @@ router.post(
         terminalId: terminal.id,
         terminalNombre: terminal.nombre,
         departamentoId: terminal.departamentoId,
+        departamentosIds: terminal.departamentosIds,
       });
 
       // Auditoría de emisión de token offline (nunca registra el token completo en logs/auditoría)

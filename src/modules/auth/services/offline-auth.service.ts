@@ -11,7 +11,8 @@ export interface OfflineTokenPayload {
   nombre: string;          // nombre del inspector
   terminalId: number;      // terminal física validada
   terminalNombre: string;  // nombre de terminal
-  departamentoId: number;  // departamento auditor asignado a la terminal
+  departamentoId: number;  // departamento principal asignado a la terminal
+  departamentosIds?: number[]; // departamentos activos habilitados en la terminal al emitir el token
   tipo: "OFFLINE_CAPTURE";
   iat: number;             // segundos UTC
   exp: number;             // segundos UTC (exactamente 172,800 segundos = 48 horas tras emisión)
@@ -78,10 +79,16 @@ export class OfflineAuthService {
     terminalId: number;
     terminalNombre: string;
     departamentoId: number;
+    departamentosIds?: number[];
     issuedAtSec?: number;
   }): { token: string; emitidoEn: number; expiraEn: number; vigenciaSegundos: number } {
     const now = params.issuedAtSec ?? Math.floor(Date.now() / 1000);
     const exp = now + this.VIGENCIA_SEGUNDOS;
+
+    const departamentosIds =
+      params.departamentosIds && params.departamentosIds.length > 0
+        ? Array.from(new Set([params.departamentoId, ...params.departamentosIds]))
+        : [params.departamentoId];
 
     const payload: OfflineTokenPayload = {
       sub: params.usuarioId,
@@ -90,6 +97,7 @@ export class OfflineAuthService {
       terminalId: params.terminalId,
       terminalNombre: params.terminalNombre,
       departamentoId: params.departamentoId,
+      departamentosIds,
       tipo: "OFFLINE_CAPTURE",
       iat: now,
       exp,
@@ -259,9 +267,10 @@ export class OfflineAuthService {
     id: number;
     nombre: string;
     departamentoId: number;
+    departamentosIds?: number[];
   }): Promise<{
     inspectores: InspectorOfflineItem[];
-    terminal: { id: number; nombre: string; departamentoId: number };
+    terminal: { id: number; nombre: string; departamentoId: number; departamentosIds?: number[] };
     vigenciaSegundos: number;
     servidorTimestamp: string;
   }> {
@@ -305,6 +314,7 @@ export class OfflineAuthService {
         terminalId: terminal.id,
         terminalNombre: terminal.nombre,
         departamentoId: terminal.departamentoId,
+        departamentosIds: terminal.departamentosIds,
         issuedAtSec: nowSec,
       });
 
@@ -331,6 +341,7 @@ export class OfflineAuthService {
         id: terminal.id,
         nombre: terminal.nombre,
         departamentoId: terminal.departamentoId,
+        departamentosIds: terminal.departamentosIds,
       },
       vigenciaSegundos: this.VIGENCIA_SEGUNDOS,
       servidorTimestamp: new Date().toISOString(),

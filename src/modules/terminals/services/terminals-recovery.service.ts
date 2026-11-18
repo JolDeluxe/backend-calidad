@@ -8,7 +8,11 @@ import {
 } from "../../../utils/errors";
 import { env } from "../../../config/env";
 import { auditService } from "../../audit/services/audit.service";
-import { terminalsService } from "../../auth/services/terminals.service";
+import {
+  terminalsService,
+  type TerminalDepartamentoActivoInfo,
+} from "../../auth/services/terminals.service";
+import { resolverLugarDeteccionTerminal } from "../../inspecciones/utils/nomenclatura-defectos";
 
 export interface SolicitarRecuperacionResult {
   codigo: string;
@@ -25,6 +29,9 @@ export interface CanjearRecuperacionResult {
     departamentoId: number;
     departamentoNombre: string;
     departamentoCodigo: string;
+    departamentos: TerminalDepartamentoActivoInfo[];
+    departamentosIds: number[];
+    lugarDeteccion: string;
     estado: string;
   };
 }
@@ -227,7 +234,21 @@ export class TerminalsRecoveryService {
           credencialHash: nuevoHash,
           fechaUltimoAcceso: now,
         },
-        include: { departamento: true },
+        include: {
+          departamento: true,
+          departamentos: {
+            where: { activo: true },
+            include: { departamento: true },
+            orderBy: [{ esPrincipal: "desc" }, { departamentoId: "asc" }],
+          },
+        },
+      });
+
+      const departamentosActivos = terminalsService.extractDepartamentosActivos(terminalActualizada);
+      const lugarDeteccion = resolverLugarDeteccionTerminal({
+        terminalNombre: terminalActualizada.nombre,
+        departamentoPrincipalNombre: terminalActualizada.departamento.nombre,
+        departamentosActivos,
       });
 
       // 8. Registrar evento de auditoría
@@ -243,6 +264,8 @@ export class TerminalsRecoveryService {
             terminalId: terminal.id,
             terminalNombre: terminal.nombre,
             departamentoId: terminal.departamentoId,
+            departamentosIds: departamentosActivos.map((d) => d.departamentoId),
+            lugarDeteccion,
           },
           contexto: {
             usuarioId: otpRecord.creadoPor,
@@ -263,6 +286,9 @@ export class TerminalsRecoveryService {
           departamentoId: terminalActualizada.departamentoId,
           departamentoNombre: terminalActualizada.departamento.nombre,
           departamentoCodigo: terminalActualizada.departamento.codigo,
+          departamentos: departamentosActivos,
+          departamentosIds: departamentosActivos.map((d) => d.departamentoId),
+          lugarDeteccion,
           estado: terminalActualizada.estado,
         },
       };
