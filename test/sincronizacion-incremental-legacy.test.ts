@@ -53,7 +53,7 @@ describe('Suite Integral FASE 3.6 y FASE 4 — Sincronización Incremental Legac
       });
     }
 
-    const loteTest = await prisma.produccionLote.findUnique({
+    const loteTest = await prisma.produccionLote.findFirst({
       where: { lote: testLoteCode },
       select: { id: true },
     });
@@ -199,7 +199,7 @@ describe('Suite Integral FASE 3.6 y FASE 4 — Sincronización Incremental Legac
     expect(res[0].registrosOmitidos).toBe(0);
 
     // Verificar que las dos filas de 2026-01-15 con L1 y L2 crearon 2 cabeceras separadas (no fusionadas)
-    const loteDB = await prisma.produccionLote.findUnique({ where: { lote: testLoteCode } });
+    const loteDB = await prisma.produccionLote.findFirst({ where: { lote: testLoteCode } });
     expect(loteDB).not.toBeNull();
 
     const cabecerasLote = await prisma.inspeccionCabecera.findMany({
@@ -229,7 +229,7 @@ describe('Suite Integral FASE 3.6 y FASE 4 — Sincronización Incremental Legac
   });
 
   test('4. Los registros WEB permanecen 100% intactos durante la sincronización', async () => {
-    const loteDB = await prisma.produccionLote.findUniqueOrThrow({ where: { lote: testLoteCode } });
+    const loteDB = await prisma.produccionLote.findFirstOrThrow({ where: { lote: testLoteCode } });
     const prelimDepto = await prisma.departamento.findFirstOrThrow({
       where: { codigo: 'PRELIMINARES' },
     });

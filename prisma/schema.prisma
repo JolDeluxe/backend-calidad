@@ -569,7 +569,7 @@ model ProduccionLote {
   id                 Int                  @id @default(autoincrement())
   listaLote          String               @map("lista_lote") @db.VarChar(60)
   lista              String               @db.VarChar(30)
-  lote               String               @unique @db.VarChar(30)
+  lote               String               @db.VarChar(30)
   idProducto         String               @map("id_producto") @db.VarChar(60)
   modelo             String               @db.VarChar(30)
   cantidad           Decimal              @db.Decimal(12, 4)
@@ -590,6 +590,7 @@ model ProduccionLote {
 
   inspecciones       InspeccionCabecera[]
 
+  @@unique([lista, lote], name: "unique_lista_lote")
   @@index([lote])
   @@index([listaLote])
   @@index([lista])
@@ -806,5 +807,42 @@ model HistoricoModificacionLegacy {
   @@index([fechaUtc])
   @@map("historico_modificaciones_legacy")
 }
+
+// =========================================================================
+// 15. CONTROL DE SINCRONIZACIÓN DE MAESTRO DE LOTES
+// =========================================================================
+
+model ControlSincronizacionLotes {
+  id                    Int       @id @default(autoincrement())
+  ejecucionUuid         String    @unique @map("ejecucion_uuid") @db.VarChar(64)
+  archivo               String    @db.VarChar(255)
+  rutaUtilizada         String    @map("ruta_utilizada") @db.VarChar(500)
+  hashSha256            String?   @map("hash_sha256") @db.VarChar(64)
+  tamanoBytes           BigInt?   @map("tamano_bytes")
+  fechaModificacionCsv  DateTime? @map("fecha_modificacion_csv")
+  iniciadoEn            DateTime  @default(now()) @map("iniciado_en")
+  finalizadoEn          DateTime? @map("finalizado_en")
+  duracionMs            Int?      @map("duracion_ms")
+  origenDisparador      String    @map("origen_disparador") @db.VarChar(50)
+  corteProgramadoUtc    DateTime? @map("corte_programado_utc")
+  numeroIntento         Int       @default(1) @map("numero_intento")
+  proximoReintentoUtc   DateTime? @map("proximo_reintento_utc")
+  registrosLeidos       Int       @default(0) @map("registros_leidos")
+  registrosInsertados   Int       @default(0) @map("registros_insertados")
+  registrosActualizados Int       @default(0) @map("registros_actualizados")
+  registrosOmitidos     Int       @default(0) @map("registros_omitidos")
+  registrosRechazados   Int       @default(0) @map("registros_rechazados")
+  registrosInactivados  Int       @default(0) @map("registros_inactivados")
+  estado                String    @db.VarChar(30)
+  mensajeError          String?   @map("mensaje_error") @db.VarChar(1000)
+  detalleTecnico        Json?     @map("detalle_tecnico")
+  anomalias             Json?     @map("anomalias")
+
+  @@index([iniciadoEn])
+  @@index([corteProgramadoUtc, estado])
+  @@index([estado])
+  @@map("control_sincronizaciones_lotes")
+}
+
 
 

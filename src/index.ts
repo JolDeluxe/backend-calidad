@@ -3,6 +3,7 @@ import { env } from "./config/env";
 import { logger } from "./utils/logger";
 import { prisma } from "./config/database";
 import { legacySyncSchedulerService } from "./modules/inspecciones/services/legacy-sync-scheduler.service";
+import { lotesSyncSchedulerService } from "./modules/lotes/services/lotes-sync-scheduler.service";
 import type { Server } from "node:http";
 
 let server: Server | null = null;
@@ -20,11 +21,14 @@ const shutdown = async (signal: string) => {
   }, 8000);
 
   try {
-    // 1. Dejar de aceptar nuevas ejecuciones del scheduler, detener el cron y esperar (hasta 5000ms)
+    // 1. Dejar de aceptar nuevas ejecuciones de los schedulers, detener los cron y esperar (hasta 5000ms)
     //    a que cualquier sincronización activa en este proceso termine o registre interrupción limpia
-    await legacySyncSchedulerService.gracefulShutdown(5000);
+    await Promise.all([
+      legacySyncSchedulerService.gracefulShutdown(5000),
+      lotesSyncSchedulerService.gracefulShutdown(5000),
+    ]);
   } catch (err) {
-    logger.error({ err }, "Error durante el apagado ordenado del scheduler Legacy");
+    logger.error({ err }, "Error durante el apagado ordenado de los schedulers");
   }
 
   // 2. Cerrar el servidor HTTP de Express y desconectar Prisma
@@ -104,7 +108,7 @@ async function startServer() {
       );
       logger.info(`👉 Health check disponible en: http://${env.SERVER_HOST}:${env.PORT}/health`);
 
-      // 3. Inicializar el scheduler Legacy exactamente una vez (0 2 * * *, America/Mexico_City)
+      // 3. Inicializar los schedulers (Legacy 05:00/20:00 y Lotes 06:00 America/Mexico_City)
       //    y lanzar la recuperación controlada de sincronizaciones pendientes en segundo plano
       legacySyncSchedulerService
         .initializeBackendScheduler({
@@ -115,6 +119,18 @@ async function startServer() {
           logger.error(
             { err },
             "Error al inicializar el scheduler integrado de sincronización Legacy"
+          );
+        });
+
+      lotesSyncSchedulerService
+        .initializeBackendScheduler({
+          runRecoveryOnStart: true,
+          awaitRecovery: false,
+        })
+        .catch((err) => {
+          logger.error(
+            { err },
+            "Error al inicializar el scheduler integrado de sincronización de Lotes"
           );
         });
     });

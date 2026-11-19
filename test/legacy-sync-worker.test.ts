@@ -69,7 +69,7 @@ describe('Suite Integrada — Scheduler en Backend, Concurrencia, Recuperación,
       });
     }
 
-    const loteTest = await prisma.produccionLote.findUnique({
+    const loteTest = await prisma.produccionLote.findFirst({
       where: { lote: testLoteCode },
       select: { id: true },
     });
@@ -222,13 +222,13 @@ describe('Suite Integrada — Scheduler en Backend, Concurrencia, Recuperación,
     const status = scheduler.getStatus();
     expect(status.initialized).toBe(true);
     expect(status.schedulerActive).toBe(true);
-    expect(status.cronExpression).toBe('0 2 * * *');
+    expect(status.cronExpression).toBe(DEFAULT_LEGACY_CRON_EXPRESSION);
     expect(status.timeZone).toBe('America/Mexico_City');
     expect(status.nextRunUtc).toBeInstanceOf(Date);
 
-    // En America/Mexico_City (UTC-6 estándar), las 02:00:00 locales corresponden a las 08:00:00 UTC
+    // En America/Mexico_City (UTC-6 estándar), 05:00 -> 11:00 UTC, 20:00 -> 02:00 UTC
     const nextRunUtc = status.nextRunUtc!;
-    expect(nextRunUtc.getUTCHours()).toBe(8);
+    expect([2, 11]).toContain(nextRunUtc.getUTCHours());
     expect(nextRunUtc.getUTCMinutes()).toBe(0);
     expect(nextRunUtc.getUTCSeconds()).toBe(0);
 
@@ -605,7 +605,7 @@ describe('Suite Integrada — Scheduler en Backend, Concurrencia, Recuperación,
     const statusJson = (await statusRes.json()) as any;
     expect(statusJson.success).toBe(true);
     expect(statusJson.data.estadoActual).toBeDefined();
-    expect(statusJson.data.scheduler.cronExpression).toBe('0 2 * * *');
+    expect(statusJson.data.scheduler.cronExpression).toBe(DEFAULT_LEGACY_CRON_EXPRESSION);
     expect(statusJson.data.scheduler.timeZone).toBe('America/Mexico_City');
     expect(Array.isArray(statusJson.data.departamentosWeb)).toBe(true);
     expect(statusJson.data.departamentosWeb).toContain('PRELIMINARES');
@@ -668,6 +668,11 @@ describe('Suite Integrada — Scheduler en Backend, Concurrencia, Recuperación,
   });
 
   test('8. Apagado ordenado (gracefulShutdown): detiene cron, rechaza nuevas corridas y no libera bloqueos ajenos', async () => {
+    // Asegurar que el bloqueo global esté liberado antes de la prueba
+    await prisma.bloqueoSincronizacionLegacy.deleteMany({
+      where: { archivo: GLOBAL_WORKER_LOCK_KEY },
+    });
+
     const shutdownScheduler = new LegacySyncSchedulerService();
     shutdownScheduler.startScheduler();
     expect(shutdownScheduler.getStatus().schedulerActive).toBe(true);

@@ -6,7 +6,8 @@ export class LotesController {
   async getByCodigo(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const loteCodigo = req.params.lote as string;
-      const lote = await lotesService.getByCodigoLote(loteCodigo);
+      const lista = req.query.lista as string | undefined;
+      const lote = await lotesService.getByCodigoLote(loteCodigo, lista);
       sendSuccess(res, lote, "Lote recuperado exitosamente");
     } catch (error) {
       next(error);

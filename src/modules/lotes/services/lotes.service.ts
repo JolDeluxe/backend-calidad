@@ -4,17 +4,26 @@ import type { ProduccionLote } from "@prisma/client";
 
 export class LotesService {
   /**
-   * Obtiene la información oficial de un lote por su código único de lote.
+   * Obtiene la información oficial de un lote por su código de lote y opcionalmente lista.
+   * Si existen múltiples lotes con el mismo número en listas diferentes y no se especifica lista,
+   * devuelve el registro activo más reciente ordenado por ID descendente.
    */
-  async getByCodigoLote(codigoLote: string) {
+  async getByCodigoLote(codigoLote: string, lista?: string) {
     const normalizado = codigoLote.trim();
+    const where: any = {
+      lote: normalizado,
+      estado: "ACTIVO",
+      cantidad: { gt: 0 },
+      eliminadoEn: null,
+    };
+
+    if (lista && lista.trim()) {
+      where.lista = lista.trim();
+    }
+
     const lote = await prisma.produccionLote.findFirst({
-      where: {
-        lote: normalizado,
-        estado: "ACTIVO",
-        cantidad: { gt: 0 },
-        eliminadoEn: null,
-      },
+      where,
+      orderBy: { id: "desc" },
     });
 
     if (!lote) {

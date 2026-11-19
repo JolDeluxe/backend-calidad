@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import cron, { type ScheduledTask } from 'node-cron';
 import { prisma } from '../../../config/database';
 import { logger } from '../../../utils/logger';
+import { syncLogger } from '../../../utils/sync-logger';
 import {
   ARCHIVOS_PRODUCCION_LEGACY,
   type FileSyncResult,
@@ -10,13 +11,14 @@ import {
 } from './legacy-incremental-sync.service';
 import { legacySyncLockService } from './legacy-sync-lock.service';
 
-export const DEFAULT_LEGACY_CRON_EXPRESSION = '0 2 * * *';
+export const DEFAULT_LEGACY_CRON_EXPRESSION = '0 5,20 * * *';
 export const DEFAULT_LEGACY_CRON_TIMEZONE = 'America/Mexico_City';
 export const GLOBAL_WORKER_LOCK_KEY = '__WORKER_GLOBAL_SYNC__';
 
 export type SyncTriggerSource =
   | 'CRON_SCHEDULED'
   | 'RECOVERY_MISSED_RUN'
+  | 'RETRY_AUTOMATICO_30_MIN'
   | 'MANUAL_CLI'
   | 'MANUAL_API';
 
@@ -80,6 +82,10 @@ export class LegacySyncSchedulerService {
   private currentAbortReason: string | null = null;
   private activeCyclePromise: Promise<SyncCycleOutcome> | null = null;
   private lastCycleOutcome: SyncCycleOutcome | null = null;
+
+  private retryTimer: NodeJS.Timeout | null = null;
+  private nextRetryAtUtc: Date | null = null;
+  private retryAttemptCount = 0;
 
   private cronExpression: string =
     process.env.LEGACY_SYNC_CRON || DEFAULT_LEGACY_CRON_EXPRESSION;
@@ -164,41 +170,119 @@ export class LegacySyncSchedulerService {
   }
 
   /**
-   * Calcula el instante UTC exacto de la última ventana diaria programada de las 02:00:00 AM
+   * Calcula el instante UTC exacto de la última ventana diaria programada (por defecto 05:00 o 20:00)
    * en la zona horaria `America/Mexico_City`.
    */
   getLastScheduledCutoffUtc(
     referenceUtc: Date = new Date(),
-    targetHour = 2,
+    targetHours: number | number[] = [5, 20],
     targetMinute = 0,
     timeZone: string = this.timeZone
   ): Date {
-    const local = this.getLocalTimeParts(referenceUtc, timeZone);
-    const todayCutoffUtc = this.localPartsToUtcDate(
-      local.year,
-      local.month,
-      local.day,
-      targetHour,
-      targetMinute,
-      0,
-      timeZone
+    const hours = (Array.isArray(targetHours) ? [...targetHours] : [targetHours]).sort(
+      (a, b) => a - b
     );
+    const local = this.getLocalTimeParts(referenceUtc, timeZone);
 
-    if (referenceUtc.getTime() >= todayCutoffUtc.getTime()) {
-      return todayCutoffUtc;
+    // Candidatos del día de hoy evaluados cronológicamente
+    const todayCandidates: Date[] = [];
+    for (const h of hours) {
+      const candidate = this.localPartsToUtcDate(
+        local.year,
+        local.month,
+        local.day,
+        h,
+        targetMinute,
+        0,
+        timeZone
+      );
+      if (referenceUtc.getTime() >= candidate.getTime()) {
+        todayCandidates.push(candidate);
+      }
     }
 
-    const yesterdayRef = new Date(todayCutoffUtc.getTime() - 12 * 3600 * 1000);
+    if (todayCandidates.length > 0) {
+      return todayCandidates[todayCandidates.length - 1];
+    }
+
+    // Si aún no se alcanza la primera hora de hoy (ej: 03:00 AM antes de las 05:00 AM),
+    // el último corte fue la última hora configurada del día anterior (ej: 20:00 de ayer).
+    const yesterdayRef = new Date(
+      this.localPartsToUtcDate(local.year, local.month, local.day, 0, 0, 0, timeZone).getTime() -
+        12 * 3600 * 1000
+    );
     const yLocal = this.getLocalTimeParts(yesterdayRef, timeZone);
+    const lastHourYesterday = hours[hours.length - 1];
+
     return this.localPartsToUtcDate(
       yLocal.year,
       yLocal.month,
       yLocal.day,
-      targetHour,
+      lastHourYesterday,
       targetMinute,
       0,
       timeZone
     );
+  }
+
+  /**
+   * Programa un reintento automático en `delayMs` (por defecto 30 minutos) ante fallas en sincronización.
+   */
+  scheduleRetry(delayMs = 30 * 60 * 1000, options: SyncOptions = {}): void {
+    if (this.isShuttingDown) return;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+    }
+    this.retryAttemptCount++;
+    this.nextRetryAtUtc = new Date(Date.now() + delayMs);
+
+    logger.warn(
+      {
+        intento: this.retryAttemptCount,
+        proximoReintentoUtc: this.nextRetryAtUtc.toISOString(),
+        delayMinutos: Math.round(delayMs / 60000),
+      },
+      'Sincronización Legacy: programando reintento automático en 30 minutos por fallos detectados.'
+    );
+
+    syncLogger.log({
+      proceso: 'LEGACY_SYNC',
+      nivel: 'WARN',
+      timestamp: new Date().toISOString(),
+      mensaje: `Reintento programado #${this.retryAttemptCount} en ${Math.round(delayMs / 60000)} minutos debido a fallos pendientes.`,
+      intento: this.retryAttemptCount,
+      proximoReintentoUtc: this.nextRetryAtUtc.toISOString(),
+      estado: 'EN_PROCESO',
+    });
+
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.nextRetryAtUtc = null;
+      if (this.isShuttingDown || this.isRunningInMemory) {
+        if (!this.isShuttingDown) {
+          this.scheduleRetry(5 * 60 * 1000, options);
+        }
+        return;
+      }
+      this.checkAndRecoverMissedRun({
+        ...options,
+        trigger: 'RETRY_AUTOMATICO_30_MIN',
+      }).catch(err => {
+        logger.error({ err }, 'Error al ejecutar reintento automático de 30 min en LegacySyncScheduler');
+      });
+    }, delayMs);
+  }
+
+  /**
+   * Cancela el reintento automático programado cuando todos los archivos concluyen exitosamente.
+   */
+  cancelRetry(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.nextRetryAtUtc = null;
+    this.retryAttemptCount = 0;
   }
 
   /**
@@ -328,6 +412,40 @@ export class LegacySyncSchedulerService {
       };
       this.lastCycleOutcome = outcome;
 
+      // Registrar métricas estructuradas de cada archivo procesado en el log rotativo
+      for (const r of results) {
+        syncLogger.log({
+          proceso: 'LEGACY_SYNC',
+          nivel: r.estado === 'FALLIDO' ? 'ERROR' : 'INFO',
+          timestamp: finishedAt.toISOString(),
+          mensaje: `Sincronización legacy ${r.archivo} (${r.departamento}): ${r.estado}. Detectados: ${r.registrosDetectados}, Insertados: ${r.registrosInsertados}, Actualizados: ${r.registrosActualizados}, Omitidos: ${r.registrosOmitidos}, Rechazados: ${r.registrosRechazados}.`,
+          ejecucionUuid: cycleId,
+          origenDisparador: trigger,
+          archivo: r.archivo,
+          estado: r.estado === 'EXITOSO' ? 'EXITOSO' : r.estado === 'FALLIDO' ? 'FALLIDO' : undefined,
+          metricas: {
+            leidos: r.registrosDetectados,
+            insertados: r.registrosInsertados,
+            actualizados: r.registrosActualizados,
+            omitidos: r.registrosOmitidos,
+            rechazados: r.registrosRechazados,
+          },
+          error: r.mensajeError,
+          detalleTecnico: {
+            erroresCount: r.erroresCount,
+            rechazosCount: r.rechazos?.length ?? 0,
+          },
+        });
+      }
+
+      // Evaluar reintentos automáticos de 30 minutos ante fallas
+      const hayFallidos = results.some(r => r.estado === 'FALLIDO');
+      if (hayFallidos) {
+        this.scheduleRetry(30 * 60 * 1000, options);
+      } else {
+        this.cancelRetry();
+      }
+
       logger.info(
         {
           cycleId,
@@ -422,9 +540,14 @@ export class LegacySyncSchedulerService {
       };
     }
 
-    const promise = this.executeLockedCycle(cycleId, trigger, ownerUuid, startedAt, options);
-    this.activeCyclePromise = promise;
-    return promise;
+    try {
+      const promise = this.executeLockedCycle(cycleId, trigger, ownerUuid, startedAt, options);
+      this.activeCyclePromise = promise;
+      return await promise;
+    } catch (err: any) {
+      this.scheduleRetry(30 * 60 * 1000, options);
+      throw err;
+    }
   }
 
   /**
@@ -515,18 +638,18 @@ export class LegacySyncSchedulerService {
   }
 
   /**
-   * Verifica al arranque/reinicio del backend si la corrida programada de las 02:00 AM
+   * Verifica al arranque/reinicio del backend si la corrida programada de las 05:00 AM u 08:00 PM
    * (`America/Mexico_City`) fue omitida o quedó parcial/incompleta, ejecutando únicamente los
    * departamentos LEGACY pendientes.
    *
    * Regla fundamental: una ejecución parcial NO marca como completado el ciclo; se reintentan
-   * exclusivamente los archivos que no tengan estado EXITOSO desde el último corte de las 02:00 AM.
+   * exclusivamente los archivos que no tengan estado EXITOSO desde el último corte de las 05:00 o 20:00.
    */
   async checkAndRecoverMissedRun(
-    options: SyncOptions & { referenceNow?: Date } = {}
+    options: SyncOptions & { referenceNow?: Date; trigger?: SyncTriggerSource } = {}
   ): Promise<RecoveryCheckOutcome> {
     const now = options.referenceNow ?? new Date();
-    const cutoffUtc = this.getLastScheduledCutoffUtc(now, 2, 0, this.timeZone);
+    const cutoffUtc = this.getLastScheduledCutoffUtc(now, [5, 20], 0, this.timeZone);
 
     if (this.isShuttingDown || this.isRunningInMemory) {
       return {
@@ -584,7 +707,7 @@ export class LegacySyncSchedulerService {
       };
     }
 
-    // 4. Comprobar archivo por archivo si su última ejecución posterior al corte de las 02:00 AM fue EXITOSA
+    // 4. Comprobar archivo por archivo si su última ejecución posterior al corte programado fue EXITOSA
     const runsSinceCutoff = await prisma.controlSincronizacionLegacy.findMany({
       where: {
         archivo: { in: targetFiles },
@@ -611,9 +734,10 @@ export class LegacySyncSchedulerService {
     const pendingFiles = targetFiles.filter(f => !completedSet.has(f));
 
     if (pendingFiles.length === 0) {
+      this.cancelRetry();
       logger.info(
         { cutoffUtc: cutoffUtc.toISOString(), alreadyCompletedFiles },
-        'Verificación de arranque: todos los departamentos LEGACY ya sincronizaron exitosamente después del último corte programado (02:00 America/Mexico_City).'
+        'Verificación de arranque: todos los departamentos LEGACY ya sincronizaron exitosamente después del último corte programado (05:00 o 20:00 America/Mexico_City).'
       );
       return {
         cutoffUtc,
@@ -630,10 +754,10 @@ export class LegacySyncSchedulerService {
         pendingFiles,
         alreadyCompletedFiles,
       },
-      'Verificación de arranque: se detectaron departamentos LEGACY pendientes desde el último corte de las 02:00 AM. Ejecutando recuperación controlada...'
+      'Verificación de arranque: se detectaron departamentos LEGACY pendientes desde el último corte programado. Ejecutando recuperación controlada...'
     );
 
-    const cycleOutcome = await this.runCycle('RECOVERY_MISSED_RUN', {
+    const cycleOutcome = await this.runCycle(options.trigger ?? 'RECOVERY_MISSED_RUN', {
       ...options,
       archivosFiltro: pendingFiles,
     });
@@ -773,6 +897,7 @@ export class LegacySyncSchedulerService {
     interrupted: boolean;
   }> {
     this.isShuttingDown = true;
+    this.cancelRetry();
     const ownerAtShutdown = this.currentOwnerUuid;
 
     if (this.task) {
@@ -854,6 +979,8 @@ export class LegacySyncSchedulerService {
       currentOwnerUuid: this.currentOwnerUuid,
       currentStartedAt: this.currentStartedAt,
       nextRunUtc: this.getNextScheduledRun(),
+      proximoReintentoUtc: this.nextRetryAtUtc,
+      intentosReintento: this.retryAttemptCount,
     };
   }
 
@@ -862,7 +989,7 @@ export class LegacySyncSchedulerService {
    */
   async getDetailedStatus() {
     const now = new Date();
-    const cutoffUtc = this.getLastScheduledCutoffUtc(now, 2, 0, this.timeZone);
+    const cutoffUtc = this.getLastScheduledCutoffUtc(now, [5, 20], 0, this.timeZone);
     const nextRunUtc = this.getNextScheduledRun();
     const deptosWebSet = legacyIncrementalSyncService.getDepartamentosEnModoWeb();
 
@@ -1014,6 +1141,8 @@ export class LegacySyncSchedulerService {
         timeZone: this.timeZone,
         proximaEjecucionProgramada: nextRunUtc,
         ultimoCorteProgramadoUtc: cutoffUtc,
+        proximoReintentoUtc: this.nextRetryAtUtc,
+        intentosReintento: this.retryAttemptCount,
       },
       ejecucionActiva: {
         enMemoria: this.isRunningInMemory,

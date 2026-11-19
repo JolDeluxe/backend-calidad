@@ -2,11 +2,22 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "../../../config/database";
 import { Prisma } from "@prisma/client";
+import {
+  resolverRutaLotesCSV,
+  verificarEstabilidadYAccesoArchivo,
+  type FileMetadataResult,
+} from "./lotes-file-resolver";
+import { syncLogger } from "../../../utils/sync-logger";
 
 export interface ImportLotesOptions {
   filePath?: string;
   usuarioId?: number;
   batchSize?: number;
+  strictProduction?: boolean;
+  permitirInactivacion?: boolean;
+  debounceMs?: number;
+  origenDisparador?: string;
+  ejecucionUuid?: string;
 }
 
 export interface ImportLotesResult {
@@ -15,9 +26,16 @@ export interface ImportLotesResult {
   actualizados: number;
   omitidos: number;
   rechazados: number;
+  inactivados: number;
   anomalias: Array<{ fila: number; lote?: string; motivo: string }>;
   errores: Array<{ fila: number; lote?: string; motivo: string }>;
   duracionMs: number;
+  archivoUtilizado: string;
+  hashSha256?: string;
+  tamanoBytes?: number;
+  fechaModificacionArchivo?: Date;
+  inactivacionEjecutada: boolean;
+  inactivacionMotivoOmision?: string;
 }
 
 /**
@@ -49,7 +67,7 @@ export function parseCSVLine(line: string): string[] {
 
 /**
  * Validador y extractor estricto del campo derivado 'modelo' a partir de IdProducto.
- * Regla oficial observada: para '103Z2LPH9052CUH', el modelo esperado es '3Z2LPH'.
+ * Regla oficial: para '103Z2LPH9052CUH', el modelo esperado es '3Z2LPH'.
  * Debe empezar con prefijo '10', longitud mínima 8 y extraer exactamente 6 caracteres.
  */
 export function extraerModelo(idProducto: string): { modelo: string | null; error?: string } {
@@ -68,33 +86,48 @@ export function extraerModelo(idProducto: string): { modelo: string | null; erro
 }
 
 /**
- * Servicio de importación idempotente y transaccional del maestro de lotes.
+ * Servicio de importación robusto, seguro, idempotente y transaccional del maestro de lotes.
  */
 export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): Promise<ImportLotesResult> {
   const t0 = Date.now();
-  const defaultPath = "C:/Users/MBCPROEW10028/Downloads/DtaosBse/Calidad Datos Base.csv";
-  const filePath = options.filePath || defaultPath;
   const batchSize = options.batchSize || 100;
   const usuarioId = options.usuarioId || null;
+  const permitirInactivacion = options.permitirInactivacion ?? true;
 
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`El archivo CSV fuente no existe en la ruta: ${filePath}`);
+  // 1. Resolver ruta oficial de forma segura (sin fallback obsoleto en modo estricto)
+  let filePath: string;
+  if (options.filePath) {
+    filePath = options.filePath;
+  } else {
+    filePath = await resolverRutaLotesCSV({
+      strictProduction: options.strictProduction,
+    });
   }
+
+  // 2. Verificar estabilidad del archivo (Anti-Torn-Write) y calcular hash
+  const meta: FileMetadataResult = await verificarEstabilidadYAccesoArchivo(
+    filePath,
+    options.debounceMs ?? 150
+  );
 
   const fileContent = fs.readFileSync(filePath, "utf-8");
   const rawLines = fileContent.trim().split(/\r?\n/);
 
   if (rawLines.length === 0) {
-    throw new Error("El archivo CSV está completamente vacío");
+    throw new Error(`El archivo CSV '${filePath}' está completamente vacío.`);
   }
 
-  // 1. Validar cabecera requerida
+  // 3. Validar cabecera requerida de 8 columnas
   const header = parseCSVLine(rawLines[0]).map((h) => h.trim());
   const expectedCols = ["Lista Lote", "Lista", "Lote", "IdProducto", "Cantidad", "Descripcion", "Cliente", "Horma"];
-  const isValidHeader = expectedCols.every((col, idx) => header[idx] && header[idx].toLowerCase() === col.toLowerCase());
+  const isValidHeader = expectedCols.every(
+    (col, idx) => header[idx] && header[idx].toLowerCase() === col.toLowerCase()
+  );
 
   if (!isValidHeader) {
-    throw new Error(`La cabecera del CSV no coincide con las 8 columnas esperadas. Recibido: ${header.join(", ")}`);
+    throw new Error(
+      `La cabecera del CSV no coincide con las 8 columnas esperadas. Recibido: [${header.join(", ")}] en ${filePath}`
+    );
   }
 
   const result: ImportLotesResult = {
@@ -103,12 +136,18 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
     actualizados: 0,
     omitidos: 0,
     rechazados: 0,
+    inactivados: 0,
     anomalias: [],
     errores: [],
     duracionMs: 0,
+    archivoUtilizado: filePath,
+    hashSha256: meta.sha256,
+    tamanoBytes: meta.sizeBytes,
+    fechaModificacionArchivo: meta.mtime,
+    inactivacionEjecutada: false,
   };
 
-  // 2. Parseo y validación de filas individuales
+  // 4. Parseo y validación de filas individuales
   interface FilaValida {
     filaNum: number;
     listaLote: string;
@@ -120,15 +159,17 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
     descripcion: string | null;
     cliente: string;
     horma: string | null;
+    claveCompuesta: string; // "lista|lote"
   }
 
   const filasParaProcesar: FilaValida[] = [];
-  const lotesEnArchivo = new Set<string>();
+  const clavesCompuestasEnArchivo = new Set<string>();
+  const lotesSimplesEnArchivo = new Set<string>();
 
   for (let i = 1; i < rawLines.length; i++) {
     const filaNum = i + 1;
     const rawLine = rawLines[i].trim();
-    if (!rawLine) continue; // Ignorar líneas en blanco al final
+    if (!rawLine) continue;
 
     result.totalLeidos++;
     const cols = parseCSVLine(rawLines[i]);
@@ -147,29 +188,42 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
     const lote = cols[2].trim();
     const idProducto = cols[3].trim();
     const cantidadStr = cols[4].trim();
-    // Conservar descripción vacía tal como viene en el CSV (ej. MUESTRAS), sin inventar texto
     const descripcionRaw = cols[5].trim();
     const descripcion = descripcionRaw.length > 0 ? descripcionRaw : null;
     const cliente = cols[6].trim();
     const hormaRaw = cols[7].trim();
     const horma = hormaRaw.length > 0 ? hormaRaw : null;
 
-    // Validar lote obligatorio
     if (!lote) {
       result.rechazados++;
       result.errores.push({ fila: filaNum, motivo: "El campo 'Lote' es obligatorio y está vacío" });
       continue;
     }
 
-    // Detección de duplicados internos dentro del mismo archivo CSV
-    if (lotesEnArchivo.has(lote)) {
+    const claveCompuesta = `${lista}|${lote}`;
+
+    // Detección de duplicado exacto de Lista + Lote en el mismo archivo
+    if (clavesCompuestasEnArchivo.has(claveCompuesta)) {
       result.rechazados++;
-      result.errores.push({ fila: filaNum, lote, motivo: `Lote '${lote}' duplicado dentro del mismo archivo CSV` });
+      result.errores.push({
+        fila: filaNum,
+        lote,
+        motivo: `Combinación Lista '${lista}' y Lote '${lote}' duplicada dentro del mismo archivo CSV`,
+      });
       continue;
     }
-    lotesEnArchivo.add(lote);
+    clavesCompuestasEnArchivo.add(claveCompuesta);
 
-    // Validar y convertir Cantidad decimal sin pérdida de ceros ni precisión
+    // Registro de anomalía informativa si el mismo lote aparece en listas diferentes
+    if (lotesSimplesEnArchivo.has(lote)) {
+      result.anomalias.push({
+        fila: filaNum,
+        lote,
+        motivo: `El número de lote '${lote}' aparece en múltiples listas en el mismo archivo CSV (Lista actual: '${lista}')`,
+      });
+    }
+    lotesSimplesEnArchivo.add(lote);
+
     const cantidadNum = parseFloat(cantidadStr);
     if (isNaN(cantidadNum) || cantidadNum < 0) {
       result.rechazados++;
@@ -178,7 +232,6 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
     }
     const cantidad = new Prisma.Decimal(cantidadStr);
 
-    // Extraer y validar el modelo derivado a partir de IdProducto
     const { modelo, error: modeloErr } = extraerModelo(idProducto);
     if (!modelo || modeloErr) {
       result.rechazados++;
@@ -190,7 +243,6 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
       continue;
     }
 
-    // Registro de anomalías no bloqueantes (ej. MUESTRAS con descripción vacía)
     if (!descripcion && cliente.toUpperCase() === "MUESTRAS") {
       result.anomalias.push({
         fila: filaNum,
@@ -210,14 +262,15 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
       descripcion,
       cliente: cliente || "SIN CLIENTE",
       horma,
+      claveCompuesta,
     });
   }
 
-  // 3. Procesamiento en lotes transaccionales de MySQL (idempotente)
-  // Obtenemos todos los lotes existentes en BD para clasificar inserciones vs actualizaciones vs omitidos
-  const lotesIds = filasParaProcesar.map((f) => f.lote);
+  // 5. Cargar registros existentes en MySQL para clasificación idempotente
+  // Buscamos por lotes y listaLote para mapear por clave compuesta (lista|lote)
+  const lotesCodigos = filasParaProcesar.map((f) => f.lote);
   const lotesExistentes = await prisma.produccionLote.findMany({
-    where: { lote: { in: lotesIds } },
+    where: { lote: { in: lotesCodigos } },
     select: {
       id: true,
       lote: true,
@@ -233,36 +286,67 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
     },
   });
 
-  const mapaExistentes = new Map(lotesExistentes.map((e) => [e.lote, e]));
+  // Mapa primario por combinación lista|lote; mapa secundario por lote
+  const mapaPorClaveCompuesta = new Map<string, (typeof lotesExistentes)[number]>();
+  const mapaPorLoteSimple = new Map<string, (typeof lotesExistentes)[number]>();
 
-  // Particionar en bloques de batchSize para no saturar transacciones
+  for (const e of lotesExistentes) {
+    mapaPorClaveCompuesta.set(`${e.lista}|${e.lote}`, e);
+    if (!mapaPorLoteSimple.has(e.lote)) {
+      mapaPorLoteSimple.set(e.lote, e);
+    }
+  }
+
+  // 6. Procesamiento particionado en bloques transaccionales
   for (let i = 0; i < filasParaProcesar.length; i += batchSize) {
     const chunk = filasParaProcesar.slice(i, i + batchSize);
 
     await prisma.$transaction(async (tx) => {
       for (const item of chunk) {
-        const existente = mapaExistentes.get(item.lote);
+        // Coincidencia preferente: Lista + Lote exacto
+        let existente = mapaPorClaveCompuesta.get(item.claveCompuesta);
+
+        // Si no coincide por Lista+Lote pero sí por lote único (compatibilidad con esquema previo)
+        if (!existente) {
+          existente = mapaPorLoteSimple.get(item.lote);
+        }
 
         if (!existente) {
           // INSERTAR NUEVO REGISTRO
-          await tx.produccionLote.create({
-            data: {
-              listaLote: item.listaLote,
-              lista: item.lista,
-              lote: item.lote,
-              idProducto: item.idProducto,
-              modelo: item.modelo,
-              cantidad: item.cantidad,
-              descripcion: item.descripcion,
-              cliente: item.cliente,
-              horma: item.horma,
-              creadoPor: usuarioId,
-              estado: "ACTIVO",
-            },
-          });
-          result.insertados++;
+          try {
+            const nuevo = await tx.produccionLote.create({
+              data: {
+                listaLote: item.listaLote,
+                lista: item.lista,
+                lote: item.lote,
+                idProducto: item.idProducto,
+                modelo: item.modelo,
+                cantidad: item.cantidad,
+                descripcion: item.descripcion,
+                cliente: item.cliente,
+                horma: item.horma,
+                creadoPor: usuarioId,
+                estado: "ACTIVO",
+              },
+            });
+            mapaPorClaveCompuesta.set(item.claveCompuesta, nuevo);
+            mapaPorLoteSimple.set(item.lote, nuevo);
+            result.insertados++;
+          } catch (createErr: any) {
+            // Protección si la base de datos aún tiene UNIQUE(lote) estricto y colisiona
+            if (createErr.code === "P2002") {
+              result.rechazados++;
+              result.errores.push({
+                fila: item.filaNum,
+                lote: item.lote,
+                motivo: `Colisión de unicidad en base de datos para lote '${item.lote}' (requiere migración a UNIQUE(lista, lote)): ${createErr.message}`,
+              });
+            } else {
+              throw createErr;
+            }
+          }
         } else {
-          // COMPROBAR SI CAMBIÓ ALGÚN DATO (IDEMPOTENCIA)
+          // COMPROBAR IDEMPOTENCIA (Si los campos son idénticos, no tocar el registro)
           const mismoListaLote = existente.listaLote === item.listaLote;
           const mismaLista = existente.lista === item.lista;
           const mismoProducto = existente.idProducto === item.idProducto;
@@ -273,11 +357,20 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
           const mismaHorma = (existente.horma || null) === (item.horma || null);
           const mismoEstado = existente.estado === "ACTIVO";
 
-          if (mismoListaLote && mismaLista && mismoProducto && mismoModelo && mismaCantidad && mismaDesc && mismoCliente && mismaHorma && mismoEstado) {
-            // IDÉNTICO: No tocar para respetar auditoría y precedencia
+          if (
+            mismoListaLote &&
+            mismaLista &&
+            mismoProducto &&
+            mismoModelo &&
+            mismaCantidad &&
+            mismaDesc &&
+            mismoCliente &&
+            mismaHorma &&
+            mismoEstado
+          ) {
             result.omitidos++;
           } else {
-            // ACTUALIZACIÓN DE DATOS MAESTROS
+            // ACTUALIZACIÓN DE DATOS MAESTROS (Conserva el mismo ID)
             await tx.produccionLote.update({
               where: { id: existente.id },
               data: {
@@ -300,24 +393,74 @@ export async function importarLotesDesdeCSV(options: ImportLotesOptions = {}): P
     });
   }
 
-  // 4. Los lotes que ya NO vengan en el archivo maestro de producción pasan a INACTIVO
-  const lotesActivosEnArchivo = filasParaProcesar.map((f) => f.lote);
-  if (lotesActivosEnArchivo.length > 0) {
-    const inactivados = await prisma.produccionLote.updateMany({
-      where: {
-        lote: { notIn: lotesActivosEnArchivo },
-        estado: "ACTIVO",
-      },
-      data: {
-        estado: "INACTIVO",
-        actualizadoPor: usuarioId,
-      },
+  // 7. GUARDIA CRÍTICA CONTRA INACTIVACIÓN MASIVA ACCIDENTAL
+  // Regla: Nunca inactivar si el archivo tuvo errores de rechazo o si el volumen
+  // es inferior al 50% de los lotes actualmente activos en la base de datos.
+  if (permitirInactivacion) {
+    const lotesActivosEnBDCount = await prisma.produccionLote.count({
+      where: { estado: "ACTIVO" },
     });
-    if (inactivados.count > 0) {
-      console.log(`ℹ️ [Lotes] Se marcaron ${inactivados.count} lotes como INACTIVO al no estar en el archivo maestro actual.`);
+
+    const umbralMinimo = Math.floor(lotesActivosEnBDCount * 0.5);
+
+    if (result.rechazados > 0) {
+      result.inactivacionEjecutada = false;
+      result.inactivacionMotivoOmision = `Inactivación omitida: el archivo tuvo ${result.rechazados} filas rechazadas. Se previene inactivar datos legítimos ante posibles fallas de formato.`;
+    } else if (filasParaProcesar.length < umbralMinimo && lotesActivosEnBDCount > 100) {
+      result.inactivacionEjecutada = false;
+      result.inactivacionMotivoOmision = `Inactivación omitida por umbral de seguridad: el CSV contiene solo ${filasParaProcesar.length} filas frente a ${lotesActivosEnBDCount} lotes activos en BD (< 50%). Podría ser un archivo truncado o de subconjunto.`;
+    } else {
+      const lotesEnArchivoArr = filasParaProcesar.map((f) => f.lote);
+      const inactivadosRes = await prisma.produccionLote.updateMany({
+        where: {
+          lote: { notIn: lotesEnArchivoArr },
+          estado: "ACTIVO",
+        },
+        data: {
+          estado: "INACTIVO",
+          actualizadoPor: usuarioId,
+        },
+      });
+
+      result.inactivados = inactivadosRes.count;
+      result.inactivacionEjecutada = true;
     }
+  } else {
+    result.inactivacionEjecutada = false;
+    result.inactivacionMotivoOmision = "Inactivación deshabilitada por configuración explícita.";
   }
 
   result.duracionMs = Date.now() - t0;
+
+  // Registrar en el log estructurado de sincronización
+  syncLogger.log({
+    proceso: "LOTES_SYNC",
+    nivel: result.errores.length > 0 ? "WARN" : "INFO",
+    timestamp: new Date().toISOString(),
+    mensaje: `Importación de lotes finalizada: ${result.insertados} insertados, ${result.actualizados} actualizados, ${result.omitidos} omitidos, ${result.inactivados} inactivados, ${result.rechazados} rechazados.`,
+    ejecucionUuid: options.ejecucionUuid,
+    origenDisparador: options.origenDisparador || "MANUAL",
+    archivo: path.basename(filePath),
+    ruta: filePath,
+    hashSha256: meta.sha256,
+    tamanoBytes: meta.sizeBytes,
+    duracionMs: result.duracionMs,
+    estado: result.rechazados > 0 && result.insertados === 0 ? "FALLIDO" : "EXITOSO",
+    metricas: {
+      leidos: result.totalLeidos,
+      insertados: result.insertados,
+      actualizados: result.actualizados,
+      omitidos: result.omitidos,
+      rechazados: result.rechazados,
+      inactivados: result.inactivados,
+    },
+    error: result.errores.length > 0 ? `${result.errores.length} filas con error` : null,
+    detalleTecnico: {
+      inactivacionEjecutada: result.inactivacionEjecutada,
+      inactivacionMotivoOmision: result.inactivacionMotivoOmision,
+      anomaliasCount: result.anomalias.length,
+    },
+  });
+
   return result;
 }

@@ -10,6 +10,7 @@ import { defectosRouter } from "../modules/defectos/defectos.routes";
 import { lotesRouter } from "../modules/lotes/lotes.routes";
 import { inspeccionesRouter } from "../modules/inspecciones/inspecciones.routes";
 import { legacySyncAdminRouter } from "../modules/inspecciones/legacy-sync.routes";
+import { lotesSyncAdminRouter } from "../modules/lotes/lotes-sync.routes";
 import { proyeccionRouter } from "../modules/proyeccion/proyeccion.routes";
 
 const router = Router();
@@ -27,6 +28,7 @@ router.use("/defectos", defectosRouter);
 router.use("/lotes", lotesRouter);
 router.use("/inspecciones", inspeccionesRouter);
 router.use("/admin/legacy-sync", legacySyncAdminRouter);
+router.use("/admin/lotes-sync", lotesSyncAdminRouter);
 router.use("/proyeccion", proyeccionRouter);
 
 export const v1Router = router;
