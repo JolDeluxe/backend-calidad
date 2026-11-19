@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `control_sincronizaciones_lotes` (
     `registros_leidos` INTEGER NOT NULL DEFAULT 0,
     `registros_insertados` INTEGER NOT NULL DEFAULT 0,
     `registros_actualizados` INTEGER NOT NULL DEFAULT 0,
+    `registros_reactivados` INTEGER NOT NULL DEFAULT 0,
     `registros_omitidos` INTEGER NOT NULL DEFAULT 0,
     `registros_rechazados` INTEGER NOT NULL DEFAULT 0,
     `registros_inactivados` INTEGER NOT NULL DEFAULT 0,

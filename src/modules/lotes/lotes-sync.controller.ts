@@ -21,8 +21,9 @@ export class LotesSyncController {
 
   /**
    * POST /api/v1/admin/lotes-sync/run
-   * Inicia una ejecución manual de importación de lotes en segundo plano,
-   * responde de inmediato con 202 Accepted o 409 Conflict si ya hay una ejecución en curso.
+   * Inicia una ejecución de reconciliación de lotes.
+   * Si dryRun es true, ejecuta la previsualización y responde directamente con el desglose estimado.
+   * Si es reconciliación real, inicia en segundo plano con ticket 202 Accepted.
    */
   async runSync(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -31,6 +32,8 @@ export class LotesSyncController {
       const ticket = await lotesSyncSchedulerService.startAsyncManualRun({
         permitirInactivacion: body.permitirInactivacion,
         batchSize: body.batchSize,
+        dryRun: body.dryRun,
+        confirmarReconciliacion: body.confirmarReconciliacion,
         usuarioId: (req as any).user?.id,
       });
 
@@ -38,6 +41,22 @@ export class LotesSyncController {
         throw new ConflictError(
           `No se puede iniciar la sincronización de lotes: ya existe una ejecución en curso o el servidor está apagándose (${ticket.skipReason}).`
         );
+      }
+
+      if (body.dryRun && ticket.completionPromise) {
+        const cycleOutcome = await ticket.completionPromise;
+        sendSuccess(
+          res,
+          {
+            cycleId: ticket.cycleId,
+            dryRun: true,
+            iniciadoEn: ticket.startedAt,
+            finalizadoEn: cycleOutcome.finishedAt,
+            resultado: cycleOutcome.result,
+          },
+          'Previsualización de reconciliación completada exitosamente (sin mutar base de datos).'
+        );
+        return;
       }
 
       sendSuccess(

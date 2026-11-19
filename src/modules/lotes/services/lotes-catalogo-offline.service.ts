@@ -8,6 +8,7 @@ export interface LotesCatalogoOfflineParams {
 
 export interface LoteOfflineItem {
   id: number;
+  listaLote: string;
   lote: string;
   lista: string;
   idProducto: string;
@@ -55,6 +56,7 @@ export class LotesCatalogoOfflineService {
       where,
       select: {
         id: true,
+        listaLote: true,
         lote: true,
         lista: true,
         idProducto: true,
@@ -77,6 +79,7 @@ export class LotesCatalogoOfflineService {
 
     const itemsNormalizados: LoteOfflineItem[] = items.map((l) => ({
       id: l.id,
+      listaLote: l.listaLote,
       lote: l.lote,
       lista: l.lista,
       idProducto: l.idProducto,

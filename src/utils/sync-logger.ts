@@ -21,6 +21,7 @@ export interface SyncLogEntry {
     leidos?: number;
     insertados?: number;
     actualizados?: number;
+    reactivados?: number;
     omitidos?: number;
     rechazados?: number;
     inactivados?: number;

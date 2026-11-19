@@ -830,6 +830,7 @@ model ControlSincronizacionLotes {
   registrosLeidos       Int       @default(0) @map("registros_leidos")
   registrosInsertados   Int       @default(0) @map("registros_insertados")
   registrosActualizados Int       @default(0) @map("registros_actualizados")
+  registrosReactivados  Int       @default(0) @map("registros_reactivados")
   registrosOmitidos     Int       @default(0) @map("registros_omitidos")
   registrosRechazados   Int       @default(0) @map("registros_rechazados")
   registrosInactivados  Int       @default(0) @map("registros_inactivados")

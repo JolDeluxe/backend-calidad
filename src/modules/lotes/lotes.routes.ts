@@ -4,6 +4,7 @@ import { authenticate, authenticateOrTerminal, requireTerminal } from "../../mid
 import { validate } from "../../middlewares/validate";
 import {
   getLoteByCodigoParamSchema,
+  getLoteByCodigoQuerySchema,
   searchLotesQuerySchema,
   catalogoOfflineQuerySchema,
 } from "./lotes.schema";
@@ -50,10 +51,10 @@ router.get(
   (req, res, next) => lotesController.searchLotes(req, res, next),
 );
 
-// Consulta individual por código de lote
+// Consulta individual por código de lote (o código canónico [L]listaLote), con soporte de desambiguación por lista
 router.get(
   "/:lote",
-  validate({ params: getLoteByCodigoParamSchema }),
+  validate({ params: getLoteByCodigoParamSchema, query: getLoteByCodigoQuerySchema }),
   (req, res, next) => lotesController.getByCodigo(req, res, next),
 );
 

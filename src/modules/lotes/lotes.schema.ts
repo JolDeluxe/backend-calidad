@@ -4,11 +4,16 @@ export const getLoteByCodigoParamSchema = z.object({
   lote: z.string().trim().min(1, "El número de lote es obligatorio"),
 });
 
+export const getLoteByCodigoQuerySchema = z.object({
+  lista: z.string().trim().optional(),
+});
+
 export const searchLotesQuerySchema = z.object({
   busqueda: z.string().trim().optional(),
   lista: z.string().trim().optional(),
   modelo: z.string().trim().optional(),
   cliente: z.string().trim().optional(),
+  incluirInactivos: z.coerce.boolean().optional().default(false),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
@@ -18,4 +23,3 @@ export const catalogoOfflineQuerySchema = z.object({
   cursor: z.coerce.number().int().nonnegative().optional().default(0),
   limit: z.coerce.number().int().positive().max(1000).optional().default(500),
 });
-
