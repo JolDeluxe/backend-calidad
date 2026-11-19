@@ -915,7 +915,7 @@ export class InspeccionesService {
 
     const deptoAuditoria = await prisma.departamento.findUnique({
       where: { id: deptoAuditoriaId },
-      select: { id: true, codigo: true, nombre: true },
+      select: { id: true, codigo: true, nombre: true, numeroLineas: true },
     });
 
     if (departamentosActivosTerminal.length === 0 && deptoAuditoria) {
@@ -1834,7 +1834,7 @@ export class InspeccionesService {
       });
     }
 
-    // 2. Filtro explícito por departamentos (múltiples o individual), auditor, responsable o unificado
+    // 2. Filtro explícito por departamentos (múltiples o individual), auditor, responsable o combinaciones
     if (params.departamentosIds && params.departamentosIds.length > 0) {
       andConditions.push({
         OR: [
@@ -1849,14 +1849,14 @@ export class InspeccionesService {
           { defDeptoId: params.departamentoId },
         ],
       });
-    } else {
-      if (params.departamentoAuditoriaId) {
-        (where.inspeccion as any).departamentoAuditoriaId = params.departamentoAuditoriaId;
-      }
+    }
 
-      if (params.departamentoResponsableId) {
-        where.defDeptoId = params.departamentoResponsableId;
-      }
+    if (params.departamentoAuditoriaId) {
+      (where.inspeccion as any).departamentoAuditoriaId = params.departamentoAuditoriaId;
+    }
+
+    if (params.departamentoResponsableId) {
+      where.defDeptoId = params.departamentoResponsableId;
     }
 
     if (params.clasificacion) {
@@ -2269,13 +2269,13 @@ export class InspeccionesService {
       conditions.push(
         Prisma.sql`(c.departamento_auditoria_id = ${params.departamentoId} OR d.def_depto_id = ${params.departamentoId})`
       );
-    } else {
-      if (params.departamentoAuditoriaId) {
-        conditions.push(Prisma.sql`c.departamento_auditoria_id = ${params.departamentoAuditoriaId}`);
-      }
-      if (params.departamentoResponsableId) {
-        conditions.push(Prisma.sql`d.def_depto_id = ${params.departamentoResponsableId}`);
-      }
+    }
+
+    if (params.departamentoAuditoriaId) {
+      conditions.push(Prisma.sql`c.departamento_auditoria_id = ${params.departamentoAuditoriaId}`);
+    }
+    if (params.departamentoResponsableId) {
+      conditions.push(Prisma.sql`d.def_depto_id = ${params.departamentoResponsableId}`);
     }
 
     if (params.inspectorId) {
