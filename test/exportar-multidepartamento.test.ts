@@ -181,7 +181,7 @@ describe("Exportación y consulta con múltiples departamentos", () => {
       expect(fila.defDepto).toBe(deptos[0].nombre);
     }
 
-    // 3. Consulta unificada por departamentoId (auditado OR responsable)
+    // 3. Consulta estricta por departamentoId (responsable del defecto)
     const resUnificado = await inspeccionesService.getFilasInspeccion({
       periodo: "hoy",
       departamentoId: d1,
@@ -190,10 +190,7 @@ describe("Exportación y consulta con múltiples departamentos", () => {
     });
     expect(resUnificado).toBeDefined();
     for (const fila of resUnificado.items) {
-      const coincide =
-        fila.departamentoAuditoriaCodigo === deptos[0].codigo ||
-        fila.defDepto === deptos[0].nombre;
-      expect(coincide).toBe(true);
+      expect(fila.defDepto).toBe(deptos[0].nombre);
     }
 
     // 4. Combinación de departamentosIds con departamentoResponsableId

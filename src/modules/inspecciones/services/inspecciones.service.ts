@@ -1834,20 +1834,14 @@ export class InspeccionesService {
       });
     }
 
-    // 2. Filtro explícito por departamentos (múltiples o individual), auditor, responsable o combinaciones
+    // 2. Filtro explícito por departamentos (múltiples o individual): filtra estrictamente por departamento responsable del defecto
     if (params.departamentosIds && params.departamentosIds.length > 0) {
       andConditions.push({
-        OR: [
-          { inspeccion: { departamentoAuditoriaId: { in: params.departamentosIds } } },
-          { defDeptoId: { in: params.departamentosIds } },
-        ],
+        defDeptoId: { in: params.departamentosIds },
       });
     } else if (params.departamentoId) {
       andConditions.push({
-        OR: [
-          { inspeccion: { departamentoAuditoriaId: params.departamentoId } },
-          { defDeptoId: params.departamentoId },
-        ],
+        defDeptoId: params.departamentoId,
       });
     }
 
@@ -2263,11 +2257,11 @@ export class InspeccionesService {
     if (params.departamentosIds && params.departamentosIds.length > 0) {
       const idsSql = Prisma.join(params.departamentosIds);
       conditions.push(
-        Prisma.sql`(c.departamento_auditoria_id IN (${idsSql}) OR d.def_depto_id IN (${idsSql}))`
+        Prisma.sql`d.def_depto_id IN (${idsSql})`
       );
     } else if (params.departamentoId) {
       conditions.push(
-        Prisma.sql`(c.departamento_auditoria_id = ${params.departamentoId} OR d.def_depto_id = ${params.departamentoId})`
+        Prisma.sql`d.def_depto_id = ${params.departamentoId}`
       );
     }
 
