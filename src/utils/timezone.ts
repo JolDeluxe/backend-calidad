@@ -153,13 +153,22 @@ export function getRangoAnioUtc(anio: number): { inicioUtc: Date; finUtc: Date }
 }
 
 /**
- * Calcula el Año ISO 8601 y el Número de Semana ISO 8601 (1..53, Lunes a Domingo)
+ * Calcula el Año ISO y el Número de Semana de Calidad (1..53, Miércoles a Martes)
  * para una fecha local `AAAA-MM-DD` (o `Date` convertida a `America/Mexico_City`).
+ *
+ * En Calidad MBC, las semanas operativas no van de lunes a domingo:
+ * inician en MIÉRCOLES (00:00:00 local) y concluyen en MARTES (23:59:59.999 local) de la siguiente semana.
+ *
+ * Al desplazar la fecha local en -2 días, el ciclo Miércoles-Martes se alinea
+ * matemáticamente con el algoritmo estándar ISO 8601 (Lunes-Domingo):
+ * - Miércoles 18 nov. 2026 -> Semana 47
+ * - Martes 24 nov. 2026 -> Semana 47
+ * - Miércoles 25 nov. 2026 -> Semana 48 (hace corte y recomienza)
  */
 export function getIsoYearAndWeek(input: string | Date): {
   anioIso: number;
   semanaIso: number;
-  yearWeek: number; // YYYYWW (idéntico a YEARWEEK(fecha, 3) en MySQL)
+  yearWeek: number; // YYYYWW (idéntico a YEARWEEK(fecha - 2 días, 3) en MySQL)
 } {
   let y: number;
   let m: number;
@@ -177,7 +186,11 @@ export function getIsoYearAndWeek(input: string | Date): {
     d = p.dia;
   }
 
-  const target = new Date(Date.UTC(y, m - 1, d));
+  // Desplazar 2 días hacia atrás para que Miércoles actúe como día 1 y Martes como día 7
+  const baseLocal = new Date(Date.UTC(y, m - 1, d));
+  const shifted = new Date(baseLocal.getTime() - 2 * MS_PER_DAY);
+
+  const target = new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()));
   const dayNr = target.getUTCDay() === 0 ? 7 : target.getUTCDay(); // 1=Lunes .. 7=Domingo
   // Jueves de la misma semana ISO
   target.setUTCDate(target.getUTCDate() + 4 - dayNr);
@@ -193,19 +206,23 @@ export function getIsoYearAndWeek(input: string | Date): {
 }
 
 /**
- * Obtiene el número total de semanas ISO (52 o 53) que posee un año ISO dado.
+ * Obtiene el número total de semanas de Calidad (52 o 53) que posee un año dado.
  */
 export function getMaxSemanasIsoEnAnio(anioIso: number): number {
-  // El 28 de diciembre siempre pertenece a la última semana ISO del año
-  return getIsoYearAndWeek(`${anioIso}-12-28`).semanaIso;
+  // El 30 de diciembre siempre pertenece a la última semana de Calidad (Miércoles a Martes) del año
+  return getIsoYearAndWeek(`${anioIso}-12-30`).semanaIso;
 }
 
 /**
  * Calcula la información completa y el intervalo semiabierto `[inicioUtc, finUtc)` en UTC
- * para una semana ISO 8601 específica `(anioIso, semanaIso)` en `America/Mexico_City`.
+ * para una semana de Calidad específica `(anioIso, semanaIso)` en `America/Mexico_City`.
  *
- * Maneja con exactitud las semanas que cruzan de un año civil a otro
- * (ej. Semana 01 de 2025: Lunes 30 dic. 2024 a Domingo 05 ene. 2025).
+ * En Calidad MBC, las semanas operativas van de MIÉRCOLES a MARTES:
+ * - `fechaInicio`: Miércoles `AAAA-MM-DD`
+ * - `fechaFin`:    Martes `AAAA-MM-DD`
+ * - `inicioUtc`:   Miércoles a las 00:00:00 local (`06:00:00.000Z`)
+ * - `finUtc`:      Miércoles siguiente a las 00:00:00 local (`06:00:00.000Z`) (intervalo semiabierto)
+ * - `label`:       `del Miércoles 18 al Martes 24 (SEMANA 47)`
  */
 export function getRangoSemanaIsoUtc(
   anioIso: number,
@@ -214,31 +231,33 @@ export function getRangoSemanaIsoUtc(
   anioIso: number;
   semanaIso: number;
   codigo: string;
-  fechaInicio: string; // Lunes AAAA-MM-DD
-  fechaFin: string;    // Domingo AAAA-MM-DD
-  inicioUtc: Date;     // Lunes 00:00:00 America/Mexico_City en UTC
-  finUtc: Date;        // Lunes siguiente 00:00:00 America/Mexico_City en UTC (intervalo semiabierto)
+  fechaInicio: string; // Miércoles AAAA-MM-DD
+  fechaFin: string;    // Martes AAAA-MM-DD
+  inicioUtc: Date;     // Miércoles 00:00:00 America/Mexico_City en UTC
+  finUtc: Date;        // Miércoles siguiente 00:00:00 America/Mexico_City en UTC (intervalo semiabierto)
   label: string;
 } {
   // El 4 de enero siempre cae en la Semana 1 del año ISO
   const ene4 = new Date(Date.UTC(anioIso, 0, 4));
   const diaSemEne4 = ene4.getUTCDay() === 0 ? 7 : ene4.getUTCDay(); // 1=Lunes .. 7=Domingo
 
-  // Lunes de la Semana 1 de anioIso (a las 00:00 UTC puro para aritmética de calendario)
+  // Lunes de la Semana 1 de anioIso
   const lunesSem1 = new Date(Date.UTC(anioIso, 0, 4 - (diaSemEne4 - 1)));
+  // Miércoles de la Semana 1 = Lunes + 2 días
+  const miercolesSem1 = new Date(lunesSem1.getTime() + 2 * MS_PER_DAY);
 
-  // Lunes de la semana solicitada
-  const lunesTarget = new Date(lunesSem1.getTime() + (semanaIso - 1) * 7 * MS_PER_DAY);
-  // Domingo de la semana solicitada (+6 días)
-  const domingoTarget = new Date(lunesTarget.getTime() + 6 * MS_PER_DAY);
+  // Miércoles de la semana solicitada
+  const miercolesTarget = new Date(miercolesSem1.getTime() + (semanaIso - 1) * 7 * MS_PER_DAY);
+  // Martes de la semana solicitada (+6 días)
+  const martesTarget = new Date(miercolesTarget.getTime() + 6 * MS_PER_DAY);
 
-  const y1 = lunesTarget.getUTCFullYear();
-  const m1 = lunesTarget.getUTCMonth() + 1;
-  const d1 = lunesTarget.getUTCDate();
+  const y1 = miercolesTarget.getUTCFullYear();
+  const m1 = miercolesTarget.getUTCMonth() + 1;
+  const d1 = miercolesTarget.getUTCDate();
 
-  const y2 = domingoTarget.getUTCFullYear();
-  const m2 = domingoTarget.getUTCMonth() + 1;
-  const d2 = domingoTarget.getUTCDate();
+  const y2 = martesTarget.getUTCFullYear();
+  const m2 = martesTarget.getUTCMonth() + 1;
+  const d2 = martesTarget.getUTCDate();
 
   const fechaInicio = `${String(y1).padStart(4, "0")}-${String(m1).padStart(2, "0")}-${String(d1).padStart(2, "0")}`;
   const fechaFin = `${String(y2).padStart(4, "0")}-${String(m2).padStart(2, "0")}-${String(d2).padStart(2, "0")}`;
@@ -252,15 +271,16 @@ export function getRangoSemanaIsoUtc(
   const mesCorto1 = NOMBRES_MESES_CORTO_ES[m1] || "";
   const mesCorto2 = NOMBRES_MESES_CORTO_ES[m2] || "";
 
-  // Si la semana cruza de año civil (ej. 30 dic. 2024 – 05 ene. 2025), mostrar ambos años explícitamente
-  const rangoTexto =
-    y1 !== y2
-      ? `${d1} ${mesCorto1} ${y1} – ${d2} ${mesCorto2} ${y2}`
-      : m1 !== m2
-      ? `${d1} ${mesCorto1} – ${d2} ${mesCorto2} ${y2}`
-      : `${d1} – ${d2} ${mesCorto2} ${y2}`;
+  let rangoTexto = "";
+  if (y1 !== y2) {
+    rangoTexto = `del Miércoles ${d1} ${mesCorto1} ${y1} al Martes ${d2} ${mesCorto2} ${y2}`;
+  } else if (m1 !== m2) {
+    rangoTexto = `del Miércoles ${d1} ${mesCorto1} al Martes ${d2} ${mesCorto2}`;
+  } else {
+    rangoTexto = `del Miércoles ${d1} al Martes ${d2}`;
+  }
 
-  const label = `Semana ${semanaPad} (${rangoTexto})`;
+  const label = `${rangoTexto} (SEMANA ${semanaPad})`;
 
   return {
     anioIso,

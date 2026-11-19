@@ -116,6 +116,7 @@ export interface FiltrosBaseInspeccionesParams {
   lote?: string;
   defectoClave?: number;
   departamentoId?: number;
+  departamentosIds?: number[];
   departamentoAuditoriaId?: number;
   departamentoResponsableId?: number;
   clasificacion?: "CRITICO" | "MAYOR" | "MENOR";
@@ -1081,7 +1082,10 @@ export class InspeccionesService {
           lugarDeteccionTexto: lugarDeteccionTerminal,
           departamentosTerminalSnapshot: departamentosActivosTerminal as unknown as Prisma.InputJsonValue,
           lineaId: lineaId || null,
-          lineaTexto: lineaTexto || (lineaId ? null : "L1"),
+          lineaTexto:
+            (deptoAuditoria?.numeroLineas ?? 1) > 1
+              ? lineaTexto || (lineaId ? null : "L1")
+              : null,
           horma: hormaEfectiva,
           claveIdempotencia: claveIdempotencia || null,
           estado: estadoCabecera || "RECHAZADO",
@@ -1652,6 +1656,7 @@ export class InspeccionesService {
    */
   private validarAlcanceDepartamental(params: {
     departamentoId?: number;
+    departamentosIds?: number[];
     departamentoAuditoriaId?: number;
     departamentoResponsableId?: number;
     departamentosPermitidosIds?: number[];
@@ -1672,6 +1677,13 @@ export class InspeccionesService {
 
     if (params.departamentoId && !permitidos.includes(params.departamentoId)) {
       throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+    if (params.departamentosIds && params.departamentosIds.length > 0) {
+      for (const dId of params.departamentosIds) {
+        if (!permitidos.includes(dId)) {
+          throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+        }
+      }
     }
     if (params.departamentoAuditoriaId && !permitidos.includes(params.departamentoAuditoriaId)) {
       throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
@@ -1822,8 +1834,15 @@ export class InspeccionesService {
       });
     }
 
-    // 2. Filtro explícito por departamento auditor, responsable o unificado
-    if (params.departamentoId) {
+    // 2. Filtro explícito por departamentos (múltiples o individual), auditor, responsable o unificado
+    if (params.departamentosIds && params.departamentosIds.length > 0) {
+      andConditions.push({
+        OR: [
+          { inspeccion: { departamentoAuditoriaId: { in: params.departamentosIds } } },
+          { defDeptoId: { in: params.departamentosIds } },
+        ],
+      });
+    } else if (params.departamentoId) {
       andConditions.push({
         OR: [
           { inspeccion: { departamentoAuditoriaId: params.departamentoId } },
@@ -1939,7 +1958,7 @@ export class InspeccionesService {
           select: { id: true, usuario: true, nombre: true },
         },
         departamentoAuditoria: {
-          select: { id: true, codigo: true, nombre: true },
+          select: { id: true, codigo: true, nombre: true, numeroLineas: true },
         },
         linea: {
           select: { id: true, codigo: true, nombre: true },
@@ -1953,7 +1972,7 @@ export class InspeccionesService {
       select: { id: true, clave: true, defecto: true, clasificacion: true },
     },
     departamentoResponsable: {
-      select: { id: true, codigo: true, nombre: true },
+      select: { id: true, codigo: true, nombre: true, numeroLineas: true },
     },
   } as const;
 
@@ -1995,6 +2014,13 @@ export class InspeccionesService {
         d.nomenclaturaTexto ??
         construirNomenclaturaDefecto(defDeptoNombre, lugarDeteccion);
 
+      const auditNumeroLineas = (d.inspeccion.departamentoAuditoria as any)?.numeroLineas ?? 1;
+      const respNumeroLineas = (d.departamentoResponsable as any)?.numeroLineas ?? 1;
+      const tieneMasDeUnaLinea = auditNumeroLineas > 1 || respNumeroLineas > 1;
+      const lineaValor = tieneMasDeUnaLinea
+        ? (d.inspeccion.lineaTexto || d.inspeccion.linea?.nombre || "L1")
+        : "";
+
       return {
         id: d.id,
         inspeccionId: d.inspeccionId,
@@ -2004,7 +2030,7 @@ export class InspeccionesService {
         fecha: d.inspeccion.fechaInspeccion,
         lista: d.inspeccion.lote.lista,
         lote: d.inspeccion.lote.lote,
-        linea: d.inspeccion.lineaTexto || d.inspeccion.linea?.nombre || "L1",
+        linea: lineaValor,
         modelo: d.inspeccion.lote.modelo,
         descripcion: d.inspeccion.lote.descripcion,
         horma: d.inspeccion.horma || d.inspeccion.lote.horma || "N/A",
@@ -2234,7 +2260,12 @@ export class InspeccionesService {
       );
     }
 
-    if (params.departamentoId) {
+    if (params.departamentosIds && params.departamentosIds.length > 0) {
+      const idsSql = Prisma.join(params.departamentosIds);
+      conditions.push(
+        Prisma.sql`(c.departamento_auditoria_id IN (${idsSql}) OR d.def_depto_id IN (${idsSql}))`
+      );
+    } else if (params.departamentoId) {
       conditions.push(
         Prisma.sql`(c.departamento_auditoria_id = ${params.departamentoId} OR d.def_depto_id = ${params.departamentoId})`
       );
@@ -2331,7 +2362,7 @@ export class InspeccionesService {
     >(Prisma.sql`
       SELECT
         YEAR(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR)) AS anioCivil,
-        FLOOR(YEARWEEK(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), 3) / 100) AS anioIso,
+        FLOOR(YEARWEEK(DATE_SUB(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), INTERVAL 2 DAY), 3) / 100) AS anioIso,
         MIN(DATE_FORMAT(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), '%Y-%m-%d')) AS fechaMin,
         MAX(DATE_FORMAT(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), '%Y-%m-%d')) AS fechaMax,
         COUNT(d.id) AS totalDefectos,
@@ -2447,7 +2478,7 @@ export class InspeccionesService {
               Array<{ yearWeekIso: number | bigint; totalDefectos: bigint; totalInspecciones: bigint }>
             >(Prisma.sql`
               SELECT
-                YEARWEEK(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), 3) AS yearWeekIso,
+                YEARWEEK(DATE_SUB(DATE_SUB(c.fecha_inspeccion, INTERVAL 6 HOUR), INTERVAL 2 DAY), 3) AS yearWeekIso,
                 COUNT(d.id) AS totalDefectos,
                 COUNT(DISTINCT c.id) AS totalInspecciones
               FROM inspecciones_detalle d

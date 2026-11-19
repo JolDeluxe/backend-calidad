@@ -102,6 +102,7 @@ export class InspeccionesController {
         lote: q.lote || undefined,
         defectoClave: q.defectoClave,
         departamentoId: q.departamentoId,
+        departamentosIds: q.departamentosIds,
         departamentoAuditoriaId: q.departamentoAuditoriaId,
         departamentoResponsableId: q.departamentoResponsableId,
         clasificacion: q.clasificacion,
@@ -123,38 +124,46 @@ export class InspeccionesController {
     }
 
     // 2. Rol INSPECTOR:
-    // Su departamento está determinado exclusivamente por la terminal física autenticada.
-    const deptoTerminalId = alcance.departamentosAlcanceIds[0];
-    if (!deptoTerminalId) {
+    // Su departamento está determinado exclusivamente por la terminal física autenticada (puede ser multidepartamental).
+    const deptosTerminal = alcance.departamentosAlcanceIds;
+    if (!deptosTerminal || deptosTerminal.length === 0) {
       throw new ForbiddenError(
         "Acceso denegado: requiere terminal física vinculada y activa para consultar inspecciones de su departamento"
       );
     }
 
-    // Seguridad: Un inspector NO puede consultar registros de otro departamento manipulando la URL
-    if (q.departamentoId && Number(q.departamentoId) !== deptoTerminalId) {
+    // Seguridad: Un inspector NO puede consultar registros de departamentos fuera del alcance de su terminal
+    if (q.departamentoId && !deptosTerminal.includes(Number(q.departamentoId))) {
       throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
     }
-    if (q.departamentoAuditoriaId && Number(q.departamentoAuditoriaId) !== deptoTerminalId) {
+    if (q.departamentoAuditoriaId && !deptosTerminal.includes(Number(q.departamentoAuditoriaId))) {
       throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+    }
+    if (q.departamentosIds && q.departamentosIds.length > 0) {
+      for (const dId of q.departamentosIds) {
+        if (!deptosTerminal.includes(Number(dId))) {
+          throw new ForbiddenError("Acceso denegado: no tiene permiso para consultar registros de otro departamento");
+        }
+      }
     }
 
-    // Para el inspector, se fija automáticamente el departamento al de su terminal autenticada.
+    // Para el inspector, se acota a los departamentos de su terminal autenticada.
     // Los registros NO son privados por inspector: NO se filtra por usuario creador.
     return {
       periodo: q.periodo || "ultimos",
       busqueda: q.busqueda || undefined,
       lote: q.lote || undefined,
       defectoClave: q.defectoClave,
-      departamentoId: undefined,
-      departamentoAuditoriaId: deptoTerminalId,
+      departamentoId: q.departamentoId,
+      departamentosIds: q.departamentosIds,
+      departamentoAuditoriaId: undefined,
       departamentoResponsableId: q.departamentoResponsableId,
       clasificacion: q.clasificacion,
       lineaId: q.lineaId,
       lineaTexto: q.lineaTexto || undefined,
       inspectorId: undefined, // Nunca se acota por creador: ve todos los registros de la terminal/departamento
       alcanceRestringido: undefined,
-      departamentosPermitidosIds: [deptoTerminalId],
+      departamentosPermitidosIds: deptosTerminal,
       terminalId: q.terminalId,
       dia: q.dia || undefined,
       semana: q.semana,

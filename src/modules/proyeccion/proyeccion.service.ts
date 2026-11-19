@@ -1,4 +1,9 @@
 import { prisma } from "../../config/database";
+import {
+  getIsoYearAndWeek,
+  getPartesFechaMexico,
+  getRangoSemanaIsoUtc,
+} from "../../utils/timezone";
 
 export interface ResumenDeptoProyeccion {
   id: number;
@@ -73,7 +78,7 @@ export interface ReporteSemanalProyeccionResponse {
 
 export class ProyeccionService {
   /**
-   * Obtiene el rango de fechas de la semana operativa (Lunes 00:00:00 a Domingo 23:59:59)
+   * Obtiene el rango de fechas de la semana operativa de Calidad (Miércoles 00:00:00 a Martes 23:59:59.999)
    */
   private getRangoSemana(semanaNum?: number, anioNum?: number): {
     desde: Date;
@@ -81,46 +86,17 @@ export class ProyeccionService {
     semana: number;
     anio: number;
   } {
-    const ahora = new Date();
-    const anio = anioNum || ahora.getFullYear();
-
-    if (semanaNum) {
-      // Calcular primer día del año
-      const primerDia = new Date(anio, 0, 1);
-      const diaSemanaPrimerDia = primerDia.getDay() === 0 ? 7 : primerDia.getDay(); // 1=Lunes, 7=Domingo
-      // Lunes de la semana 1
-      const lunesSemana1 = new Date(primerDia);
-      lunesSemana1.setDate(primerDia.getDate() - (diaSemanaPrimerDia - 1));
-      lunesSemana1.setHours(0, 0, 0, 0);
-
-      const desde = new Date(lunesSemana1);
-      desde.setDate(lunesSemana1.getDate() + (semanaNum - 1) * 7);
-
-      const hasta = new Date(desde);
-      hasta.setDate(desde.getDate() + 6);
-      hasta.setHours(23, 59, 59, 999);
-
-      return { desde, hasta, semana: semanaNum, anio };
-    }
-
-    // Semana actual
-    const diaActual = ahora.getDay() === 0 ? 7 : ahora.getDay();
-    const desde = new Date(ahora);
-    desde.setDate(ahora.getDate() - (diaActual - 1));
-    desde.setHours(0, 0, 0, 0);
-
-    const hasta = new Date(desde);
-    hasta.setDate(desde.getDate() + 6);
-    hasta.setHours(23, 59, 59, 999);
-
-    // Calcular número de semana ISO
-    const d = new Date(Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const semana = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-
-    return { desde, hasta, semana, anio: d.getUTCFullYear() };
+    const partesHoy = getPartesFechaMexico();
+    const isoHoy = getIsoYearAndWeek(partesHoy.fechaStr);
+    const anio = anioNum || isoHoy.anioIso;
+    const semana = semanaNum || isoHoy.semanaIso;
+    const { inicioUtc, finUtc } = getRangoSemanaIsoUtc(anio, semana);
+    return {
+      desde: inicioUtc,
+      hasta: new Date(finUtc.getTime() - 1),
+      semana,
+      anio,
+    };
   }
 
   /**

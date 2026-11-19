@@ -52,12 +52,26 @@ export const modalidadPeriodoEnum = z.enum([
   "rango",
 ]);
 
+const departamentosIdsQuerySchema = z.preprocess((val) => {
+  if (typeof val === "string") {
+    return val
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => !isNaN(n) && n > 0);
+  }
+  if (Array.isArray(val)) {
+    return val.map((v) => Number(v)).filter((n) => !isNaN(n) && n > 0);
+  }
+  return val;
+}, z.array(z.number().int().positive()).optional());
+
 const filtrosComunesInspeccionesShape = {
   periodo: modalidadPeriodoEnum.default("ultimos"),
   busqueda: z.string().trim().max(100).optional(),
   lote: z.string().trim().max(30).optional(),
   defectoClave: z.coerce.number().int().positive().optional(),
   departamentoId: z.coerce.number().int().positive().optional(),
+  departamentosIds: departamentosIdsQuerySchema,
   departamentoAuditoriaId: z.coerce.number().int().positive().optional(),
   departamentoResponsableId: z.coerce.number().int().positive().optional(),
   clasificacion: z.enum(["CRITICO", "MAYOR", "MENOR"]).optional(),
@@ -238,6 +252,7 @@ export const getPeriodosDisponiblesQuerySchema = z.object({
   lote: z.string().trim().max(30).optional(),
   defectoClave: z.coerce.number().int().positive().optional(),
   departamentoId: z.coerce.number().int().positive().optional(),
+  departamentosIds: departamentosIdsQuerySchema,
   departamentoAuditoriaId: z.coerce.number().int().positive().optional(),
   departamentoResponsableId: z.coerce.number().int().positive().optional(),
   clasificacion: z.enum(["CRITICO", "MAYOR", "MENOR"]).optional(),
