@@ -37,6 +37,8 @@ export interface ItemDefectoInput {
 
 export interface CreateInspeccionParams {
   lote: string;
+  lista?: string | null;
+  loteId?: number | null;
   lineaId?: number | null;
   lineaTexto?: string | null;
   horma?: string | null;
@@ -811,6 +813,8 @@ export class InspeccionesService {
   }> {
     const {
       lote: codigoLote,
+      lista: listaParam,
+      loteId: loteIdParam,
       lineaId,
       lineaTexto,
       horma: hormaParam,
@@ -838,12 +842,22 @@ export class InspeccionesService {
       }
     }
 
-    const loteExistente = await prisma.produccionLote.findFirst({
-      where: {
-        lote: codigoLote.trim(),
-        eliminadoEn: null,
-      },
-    });
+    const loteExistente = loteIdParam
+      ? await prisma.produccionLote.findFirst({
+          where: { id: loteIdParam, eliminadoEn: null },
+        })
+      : await prisma.produccionLote.findFirst({
+          where: {
+            OR: [
+              { listaLote: codigoLote.trim() },
+              listaParam
+                ? { lote: codigoLote.trim(), lista: listaParam.trim() }
+                : { lote: codigoLote.trim() },
+            ],
+            eliminadoEn: null,
+          },
+          orderBy: { id: "desc" },
+        });
 
     if (!loteExistente) {
       throw new NotFoundError(`El lote '${codigoLote}' no existe en el sistema de producción.`);

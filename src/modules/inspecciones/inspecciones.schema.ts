@@ -17,6 +17,8 @@ export const itemDefectoCaptureSchema = z.object({
 // El departamento de auditoría NO forma parte del contrato: lo determina exclusivamente la terminal validada.
 export const createInspeccionSchema = z.object({
   lote: z.string().trim().min(1, "El código de lote es obligatorio"),
+  lista: z.string().trim().max(30).optional().nullable(),
+  loteId: z.number().int().positive().optional().nullable(),
   lineaId: z.number().int().positive("El ID de línea debe ser válido").optional().nullable(),
   lineaTexto: z.string().trim().max(30).optional().nullable(),
   horma: z.string().trim().max(60).optional().nullable(),

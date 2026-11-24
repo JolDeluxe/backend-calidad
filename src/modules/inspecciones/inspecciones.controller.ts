@@ -51,7 +51,7 @@ export class InspeccionesController {
 
   async createInspeccion(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { lote, lineaId, lineaTexto, horma, notas, detalles } = req.body;
+      const { lote, lista, loteId, lineaId, lineaTexto, horma, notas, detalles } = req.body;
 
       let claveIdempotencia: string | undefined;
       const claveHeader = req.headers["idempotency-key"];
@@ -65,6 +65,8 @@ export class InspeccionesController {
 
       const { inspeccion, repetida } = await inspeccionesService.registrarInspeccion({
         lote,
+        lista,
+        loteId,
         lineaId,
         lineaTexto,
         horma,

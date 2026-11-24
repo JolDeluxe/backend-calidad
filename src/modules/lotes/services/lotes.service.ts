@@ -22,7 +22,7 @@ export class AmbiguousLoteError extends ConflictError {
   constructor(lote: string, coincidencias: LoteCoincidenciaResumen[]) {
     const listasStr = coincidencias.map((c) => c.lista).join(", ");
     super(
-      `El número de lote '${lote}' existe en ${coincidencias.length} listas activas diferentes (${listasStr}). Especifique el parámetro 'lista' para desambiguar.`
+      `El número de lote '${lote}' existe en ${coincidencias.length} listas activas diferentes (${listasStr}). Seleccione la lista correspondiente para continuar.`
     );
     this.coincidencias = coincidencias;
     (this as any).errors = {
